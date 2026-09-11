@@ -1,0 +1,15 @@
+{
+    "name": "ir_mugisho_merci/backend",
+    "autoload": {
+        "psr-4": {
+            "IrMugishoMerci\\Backend\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Mugisho-dev-metasploit",
+            "email": "mugishomerci445@gmail.com"
+        }
+    ],
+    "require": {}
+}
