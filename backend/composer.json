@@ -1,15 +1,11 @@
 {
-    "name": "ir_mugisho_merci/backend",
+    "name": "cyberguard/campus",
+    "description": "CYBERGUARD CAMPUS security monitoring and incident management platform",
+    "type": "project",
+    "require": {},
     "autoload": {
         "psr-4": {
-            "IrMugishoMerci\\Backend\\": "src/"
+            "CyberGuard\\Campus\\": "src/"
         }
-    },
-    "authors": [
-        {
-            "name": "Mugisho-dev-metasploit",
-            "email": "mugishomerci445@gmail.com"
-        }
-    ],
-    "require": {}
+    }
 }
