@@ -2,7 +2,9 @@
     "name": "cyberguard/campus",
     "description": "CYBERGUARD CAMPUS security monitoring and incident management platform",
     "type": "project",
-    "require": {},
+    "require": {
+        "vlucas/phpdotenv": "^5.7"
+    },
     "autoload": {
         "psr-4": {
             "CyberGuard\\Campus\\": "src/"
