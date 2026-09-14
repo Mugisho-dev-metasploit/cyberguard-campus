@@ -93,4 +93,19 @@ $router->get(
     ]
 );
 
+$router->patch(
+    '/api/incidents/{id}',
+    [$incidentController, 'update'],
+    [
+        [$authenticationMiddleware, 'handle'],
+        static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {
+            $authorizationMiddleware->handle(
+                $request,
+                ['analyst', 'admin'],
+                $next,
+            );
+        },
+    ]
+);
+
 $router->dispatch($request);

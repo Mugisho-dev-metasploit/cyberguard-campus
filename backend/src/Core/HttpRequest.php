@@ -8,11 +8,14 @@ final class HttpRequest
 {
     /**
      * @param array<string, mixed> $body
+     * @param array<string, string> $routeParams
      */
     public function __construct(
         private readonly string $method,
         private readonly string $path,
         private readonly array $body,
+        private readonly array $routeParams = [],
+        private readonly bool $jsonValid = true,
     ) {
     }
 
@@ -20,34 +23,58 @@ final class HttpRequest
     {
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
-        $path = parse_url(
+        $requestUri = parse_url(
             $_SERVER['REQUEST_URI'] ?? '/',
             PHP_URL_PATH
         );
 
-        if (!is_string($path) || $path === '') {
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        $scriptPath = parse_url($scriptName, PHP_URL_PATH);
+
+        $path = '/';
+
+        if (is_string($requestUri) && $requestUri !== '') {
+            $path = $requestUri;
+        }
+
+        if (is_string($scriptPath) && $scriptPath !== '' && str_starts_with($path, $scriptPath)) {
+            $path = substr($path, strlen($scriptPath));
+        }
+
+        if ($path === '') {
             $path = '/';
+        }
+
+        if (!str_starts_with($path, '/')) {
+            $path = '/' . $path;
         }
 
         $rawBody = file_get_contents('php://input');
 
         if ($rawBody === false || trim($rawBody) === '') {
             $body = $_POST;
+            $jsonValid = true;
         } else {
             $decoded = json_decode(
                 $rawBody,
                 true
             );
 
-            $body = is_array($decoded)
-                ? $decoded
-                : $_POST;
+            if (!is_array($decoded)) {
+                $body = [];
+                $jsonValid = false;
+            } else {
+                $body = $decoded;
+                $jsonValid = true;
+            }
         }
 
         return new self(
             method: $method,
             path: $path,
             body: $body,
+            routeParams: [],
+            jsonValid: $jsonValid,
         );
     }
 
@@ -72,5 +99,29 @@ final class HttpRequest
     public function body(): array
     {
         return $this->body;
+    }
+
+    public function jsonValid(): bool
+    {
+        return $this->jsonValid;
+    }
+
+    public function routeParam(string $key): ?string
+    {
+        return $this->routeParams[$key] ?? null;
+    }
+
+    /**
+     * @param array<string, string> $routeParams
+     */
+    public function withRouteParams(array $routeParams): self
+    {
+        return new self(
+            method: $this->method,
+            path: $this->path,
+            body: $this->body,
+            routeParams: $routeParams,
+            jsonValid: $this->jsonValid,
+        );
     }
 }
