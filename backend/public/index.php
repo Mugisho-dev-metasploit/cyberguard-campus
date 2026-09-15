@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use CyberGuard\Campus\Bootstrap\Environment;
+use CyberGuard\Campus\Controllers\EventController;
 use CyberGuard\Campus\Controllers\IncidentController;
 use CyberGuard\Campus\Controllers\LoginController;
 use CyberGuard\Campus\Core\HttpRequest;
@@ -11,10 +12,12 @@ use CyberGuard\Campus\Core\SessionManager;
 use CyberGuard\Campus\Database\Database;
 use CyberGuard\Campus\Middleware\AuthenticationMiddleware;
 use CyberGuard\Campus\Middleware\AuthorizationMiddleware;
+use CyberGuard\Campus\Repositories\EventRepository;
 use CyberGuard\Campus\Repositories\IncidentRepository;
 use CyberGuard\Campus\Repositories\UserRepository;
 use CyberGuard\Campus\Routing\Router;
 use CyberGuard\Campus\Services\AuthenticationService;
+use CyberGuard\Campus\Services\EventService;
 use CyberGuard\Campus\Services\IncidentService;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -50,6 +53,18 @@ $incidentService = new IncidentService(
 
 $incidentController = new IncidentController(
     $incidentService
+);
+
+$eventRepository = new EventRepository(
+    $connection
+);
+
+$eventService = new EventService(
+    $eventRepository
+);
+
+$eventController = new EventController(
+    $eventService
 );
 
 $authenticationMiddleware = new AuthenticationMiddleware(
@@ -102,6 +117,21 @@ $router->patch(
             $authorizationMiddleware->handle(
                 $request,
                 ['analyst', 'admin'],
+                $next,
+            );
+        },
+    ]
+);
+
+$router->get(
+    '/api/events',
+    [$eventController, 'index'],
+    [
+        [$authenticationMiddleware, 'handle'],
+        static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {
+            $authorizationMiddleware->handle(
+                $request,
+                ['viewer', 'analyst', 'admin'],
                 $next,
             );
         },
