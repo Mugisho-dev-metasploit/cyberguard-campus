@@ -8,6 +8,7 @@ use CyberGuard\Campus\Controllers\DeviceController;
 use CyberGuard\Campus\Controllers\EventController;
 use CyberGuard\Campus\Controllers\IncidentController;
 use CyberGuard\Campus\Controllers\LoginController;
+use CyberGuard\Campus\Controllers\MetricsController;
 use CyberGuard\Campus\Core\HttpRequest;
 use CyberGuard\Campus\Core\HttpResponse;
 use CyberGuard\Campus\Core\SessionManager;
@@ -18,6 +19,7 @@ use CyberGuard\Campus\Repositories\AlertRepository;
 use CyberGuard\Campus\Repositories\DeviceRepository;
 use CyberGuard\Campus\Repositories\EventRepository;
 use CyberGuard\Campus\Repositories\IncidentRepository;
+use CyberGuard\Campus\Repositories\MetricsRepository;
 use CyberGuard\Campus\Repositories\UserRepository;
 use CyberGuard\Campus\Routing\Router;
 use CyberGuard\Campus\Services\AlertService;
@@ -25,6 +27,7 @@ use CyberGuard\Campus\Services\AuthenticationService;
 use CyberGuard\Campus\Services\DeviceService;
 use CyberGuard\Campus\Services\EventService;
 use CyberGuard\Campus\Services\IncidentService;
+use CyberGuard\Campus\Services\MetricsService;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -95,6 +98,18 @@ $deviceService = new DeviceService(
 
 $deviceController = new DeviceController(
     $deviceService
+);
+
+$metricsRepository = new MetricsRepository(
+    $connection
+);
+
+$metricsService = new MetricsService(
+    $metricsRepository
+);
+
+$metricsController = new MetricsController(
+    $metricsService
 );
 
 $authenticationMiddleware = new AuthenticationMiddleware(
@@ -186,6 +201,21 @@ $router->get(
 $router->get(
     '/api/devices',
     [$deviceController, 'index'],
+    [
+        [$authenticationMiddleware, 'handle'],
+        static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {
+            $authorizationMiddleware->handle(
+                $request,
+                ['viewer', 'analyst', 'admin'],
+                $next,
+            );
+        },
+    ]
+);
+
+$router->get(
+    '/api/metrics',
+    [$metricsController, 'index'],
     [
         [$authenticationMiddleware, 'handle'],
         static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {
