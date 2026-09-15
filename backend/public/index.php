@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use CyberGuard\Campus\Bootstrap\Environment;
+use CyberGuard\Campus\Controllers\AlertController;
 use CyberGuard\Campus\Controllers\EventController;
 use CyberGuard\Campus\Controllers\IncidentController;
 use CyberGuard\Campus\Controllers\LoginController;
@@ -12,10 +13,12 @@ use CyberGuard\Campus\Core\SessionManager;
 use CyberGuard\Campus\Database\Database;
 use CyberGuard\Campus\Middleware\AuthenticationMiddleware;
 use CyberGuard\Campus\Middleware\AuthorizationMiddleware;
+use CyberGuard\Campus\Repositories\AlertRepository;
 use CyberGuard\Campus\Repositories\EventRepository;
 use CyberGuard\Campus\Repositories\IncidentRepository;
 use CyberGuard\Campus\Repositories\UserRepository;
 use CyberGuard\Campus\Routing\Router;
+use CyberGuard\Campus\Services\AlertService;
 use CyberGuard\Campus\Services\AuthenticationService;
 use CyberGuard\Campus\Services\EventService;
 use CyberGuard\Campus\Services\IncidentService;
@@ -65,6 +68,18 @@ $eventService = new EventService(
 
 $eventController = new EventController(
     $eventService
+);
+
+$alertRepository = new AlertRepository(
+    $connection
+);
+
+$alertService = new AlertService(
+    $alertRepository
+);
+
+$alertController = new AlertController(
+    $alertService
 );
 
 $authenticationMiddleware = new AuthenticationMiddleware(
@@ -126,6 +141,21 @@ $router->patch(
 $router->get(
     '/api/events',
     [$eventController, 'index'],
+    [
+        [$authenticationMiddleware, 'handle'],
+        static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {
+            $authorizationMiddleware->handle(
+                $request,
+                ['viewer', 'analyst', 'admin'],
+                $next,
+            );
+        },
+    ]
+);
+
+$router->get(
+    '/api/alerts',
+    [$alertController, 'index'],
     [
         [$authenticationMiddleware, 'handle'],
         static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {
