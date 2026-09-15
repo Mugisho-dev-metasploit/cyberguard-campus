@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use CyberGuard\Campus\Bootstrap\Environment;
 use CyberGuard\Campus\Controllers\AlertController;
+use CyberGuard\Campus\Controllers\DeviceController;
 use CyberGuard\Campus\Controllers\EventController;
 use CyberGuard\Campus\Controllers\IncidentController;
 use CyberGuard\Campus\Controllers\LoginController;
@@ -14,12 +15,14 @@ use CyberGuard\Campus\Database\Database;
 use CyberGuard\Campus\Middleware\AuthenticationMiddleware;
 use CyberGuard\Campus\Middleware\AuthorizationMiddleware;
 use CyberGuard\Campus\Repositories\AlertRepository;
+use CyberGuard\Campus\Repositories\DeviceRepository;
 use CyberGuard\Campus\Repositories\EventRepository;
 use CyberGuard\Campus\Repositories\IncidentRepository;
 use CyberGuard\Campus\Repositories\UserRepository;
 use CyberGuard\Campus\Routing\Router;
 use CyberGuard\Campus\Services\AlertService;
 use CyberGuard\Campus\Services\AuthenticationService;
+use CyberGuard\Campus\Services\DeviceService;
 use CyberGuard\Campus\Services\EventService;
 use CyberGuard\Campus\Services\IncidentService;
 
@@ -80,6 +83,18 @@ $alertService = new AlertService(
 
 $alertController = new AlertController(
     $alertService
+);
+
+$deviceRepository = new DeviceRepository(
+    $connection
+);
+
+$deviceService = new DeviceService(
+    $deviceRepository
+);
+
+$deviceController = new DeviceController(
+    $deviceService
 );
 
 $authenticationMiddleware = new AuthenticationMiddleware(
@@ -156,6 +171,21 @@ $router->get(
 $router->get(
     '/api/alerts',
     [$alertController, 'index'],
+    [
+        [$authenticationMiddleware, 'handle'],
+        static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {
+            $authorizationMiddleware->handle(
+                $request,
+                ['viewer', 'analyst', 'admin'],
+                $next,
+            );
+        },
+    ]
+);
+
+$router->get(
+    '/api/devices',
+    [$deviceController, 'index'],
     [
         [$authenticationMiddleware, 'handle'],
         static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {
