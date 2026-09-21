@@ -13,6 +13,9 @@ Use the XAMPP PHP (`/opt/lampp/bin/php`): it provides `pdo_mysql` and `pdo_sqlit
 | Suite | Covers |
 |---|---|
 | `SessionExpirationTest.php` | 6-hour absolute session (APP-03.6), in-memory SQLite |
+| `SensitiveLoginTraceTest.php` | no password in logged exception traces (APP-07.4.3): a real exception inside `AuthenticationService::authenticate()` (identifier larger than `max_allowed_packet`), on a private PHP server (trace string limit 15 and 1000000) and on the running Apache (new `php_error_log` lines only); random short, long, special-character and hash-like passwords never appear, whole or as any 6-character part; the argument shows as `SensitiveParameterValue`; no bcrypt hash logged; the request still fails with 500 as before |
+| `LoginTimingTest.php` | no account enumeration by timing (APP-07.4.2): unknown, deleted, inactive, locked and active + wrong password each cost one bcrypt verification (reference hash, bcrypt cost 12, not stored), identical 401 responses and no session, active + correct password still 200, a throttled attempt (429) never reaches the users table, nothing sensitive in the logs |
+| `LoginThrottleTest.php` | sign-in throttling (APP-07.4.1): 5 free attempts per identifier and address, 10 per identifier from any address, then 30 s doubling up to 15 min; reset after 1 h idle and on success; shared address not blocked by another identifier; case/accent variants share a bucket; unknown and existing identifiers answered identically; 429 + Retry-After; 10 truly concurrent requests (PHP server with 10 workers); no identifier, address or password stored |
 | `LogoutTest.php` | `POST /logout` (APP-07.3.2), real front controller over HTTP: session deleted server-side and cookie expired with its original attributes, old ID → 401, same generic 200 for valid, absent, unknown, corrupted or expired sessions, no session created, sign-in again after logout, POST only, client-supplied IDs/roles ignored |
 | `SessionRevocationTest.php` | account re-read on every protected request (APP-07.3.1), real front controller over HTTP: inactive, locked, deleted or soft-deleted account → 401 and session destroyed, role changes applied on the next request, client-supplied role ignored, no session created for anonymous requests, APP-06 close rule intact |
 | `IncidentWorkflowTest.php` | state machine (36 combinations × analyst/admin), close reserved to admin, history, lifecycle timestamps, rejected fields and values, rollback at every write step, column allow-list, read-only detail |
@@ -54,7 +57,8 @@ The incident suites use the database configured in `.env` and refuse to run when
 `APP_ENV=production`. Every row they create (users, incidents, alerts, devices; history
 cascades) carries a per-run marker and is deleted at the end; each suite, and `run.php`,
 checks that the counts of `incidents`, `incident_history`, `audit_logs`, `users`, `alerts`,
-`devices` and `events` are back to their initial values. Existing data is never touched.
+`devices`, `events` and recent `login_throttle` buckets are back to their initial values; sign-in
+throttling buckets created by a run are removed by its cleanup. Existing data is never touched.
 
 Authenticated requests use sessions written to a private temporary session store for the
 temporary test users: no credentials are stored or needed.

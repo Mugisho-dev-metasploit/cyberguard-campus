@@ -12,14 +12,27 @@ use DateTimeZone;
 
 final class AuthenticationService
 {
+    /**
+     * APP-07.4.2 — the bcrypt hash checked when no active account matches the identifier
+     * (unknown, deleted, inactive or locked), so every failed sign-in costs one bcrypt
+     * verification, exactly like a wrong password on an active account. Generated once from 32
+     * random bytes that were discarded: no password matches it, and the result is ignored anyway.
+     * Same algorithm and cost as the stored hashes (bcrypt, cost 12). Not a secret; not stored.
+     */
+    private const REFERENCE_HASH = '$2y$12$6fSr5qShUeQhRlXaL1k1..gJCs4nuZ.qzYDMhDOXfs541mHoKLXM.';
+
     public function __construct(
         private readonly UserRepository $userRepository,
     ) {
     }
 
+    /**
+     * APP-07.4.3 — $password is replaced by Object(SensitiveParameterValue) in any exception
+     * trace (logged by PHP for an uncaught exception), whatever the trace settings.
+     */
     public function authenticate(
         string $identifier,
-        string $password,
+        #[\SensitiveParameter] string $password,
     ): AuthenticationResult {
         $identifier = trim($identifier);
 
@@ -31,15 +44,19 @@ final class AuthenticationService
             $identifier
         );
 
-        if ($user === null) {
-            return AuthenticationResult::failure();
+        // Only an active account may sign in; any other outcome gets the reference hash, so the
+        // work done does not reveal whether, or in which state, the account exists (APP-07.4.2).
+        if ($user !== null && !$user->isActive()) {
+            $user = null;
         }
 
-        if (!$user->isActive()) {
-            return AuthenticationResult::failure();
-        }
+        // Exactly one bcrypt verification per attempt, whatever the account state.
+        $passwordMatches = password_verify(
+            $password,
+            $user?->passwordHash() ?? self::REFERENCE_HASH
+        );
 
-        if (!password_verify($password, $user->passwordHash())) {
+        if ($user === null || !$passwordMatches) {
             return AuthenticationResult::failure();
         }
 

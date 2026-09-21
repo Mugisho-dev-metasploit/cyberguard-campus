@@ -8,12 +8,14 @@ use CyberGuard\Campus\Core\HttpRequest;
 use CyberGuard\Campus\Core\HttpResponse;
 use CyberGuard\Campus\Core\SessionManager;
 use CyberGuard\Campus\Services\AuthenticationService;
+use CyberGuard\Campus\Services\LoginThrottle;
 
 final class LoginController
 {
     public function __construct(
         private readonly AuthenticationService $authenticationService,
         private readonly SessionManager $sessionManager,
+        private readonly ?LoginThrottle $loginThrottle = null,
     ) {
     }
 
@@ -37,6 +39,27 @@ final class LoginController
             );
 
             return;
+        }
+
+        // Throttling (APP-07.4.1) runs before any user lookup or password check, and answers the
+        // same way whether the account exists. Keyed on the identifier as sent, not on the account.
+        $source = $request->clientAddress();
+
+        if ($this->loginThrottle !== null) {
+            $wait = $this->loginThrottle->attempt($identifier, $source);
+
+            if ($wait !== null) {
+                HttpResponse::json(
+                    [
+                        'success' => false,
+                        'message' => 'Too many sign-in attempts. Try again later.',
+                    ],
+                    429,
+                    ['Retry-After' => (string) $wait]
+                );
+
+                return;
+            }
         }
 
         $result = $this->authenticationService->authenticate(
@@ -69,6 +92,8 @@ final class LoginController
 
             return;
         }
+
+        $this->loginThrottle?->clear($identifier, $source);
 
         $this->sessionManager->authenticate(
             userId: $user->id(),

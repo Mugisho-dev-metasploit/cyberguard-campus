@@ -16,6 +16,7 @@ final class HttpRequest
         private readonly array $body,
         private readonly array $routeParams = [],
         private readonly bool $jsonValid = true,
+        private readonly string $clientAddress = '',
     ) {
     }
 
@@ -75,6 +76,8 @@ final class HttpRequest
             body: $body,
             routeParams: [],
             jsonValid: $jsonValid,
+            // The TCP peer only: no X-Forwarded-For or similar header is trusted (no proxy in front).
+            clientAddress: (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
         );
     }
 
@@ -101,6 +104,11 @@ final class HttpRequest
         return $this->body;
     }
 
+    public function clientAddress(): string
+    {
+        return $this->clientAddress;
+    }
+
     public function jsonValid(): bool
     {
         return $this->jsonValid;
@@ -122,6 +130,7 @@ final class HttpRequest
             body: $this->body,
             routeParams: $routeParams,
             jsonValid: $this->jsonValid,
+            clientAddress: $this->clientAddress,
         );
     }
 }

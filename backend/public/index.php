@@ -19,6 +19,7 @@ use CyberGuard\Campus\Repositories\AlertRepository;
 use CyberGuard\Campus\Repositories\DeviceRepository;
 use CyberGuard\Campus\Repositories\EventRepository;
 use CyberGuard\Campus\Repositories\IncidentRepository;
+use CyberGuard\Campus\Repositories\LoginThrottleRepository;
 use CyberGuard\Campus\Repositories\MetricsRepository;
 use CyberGuard\Campus\Repositories\UserRepository;
 use CyberGuard\Campus\Routing\Router;
@@ -27,6 +28,7 @@ use CyberGuard\Campus\Services\AuthenticationService;
 use CyberGuard\Campus\Services\DeviceService;
 use CyberGuard\Campus\Services\EventService;
 use CyberGuard\Campus\Services\IncidentService;
+use CyberGuard\Campus\Services\LoginThrottle;
 use CyberGuard\Campus\Services\MetricsService;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -47,9 +49,14 @@ $authenticationService = new AuthenticationService(
 
 $sessionManager = new SessionManager();
 
+$loginThrottle = new LoginThrottle(
+    new LoginThrottleRepository($connection)
+);
+
 $loginController = new LoginController(
     authenticationService: $authenticationService,
     sessionManager: $sessionManager,
+    loginThrottle: $loginThrottle,
 );
 
 $incidentRepository = new IncidentRepository(

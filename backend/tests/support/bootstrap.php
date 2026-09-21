@@ -61,6 +61,14 @@ function tk_connect(string $class = PDO::class): PDO
     );
 }
 
+/**
+ * Sign-in throttling buckets (APP-07.4.1) present before this run: cleanup removes only the
+ * buckets created by the run's own sign-in attempts. Buckets idle for 2 h may be purged by the
+ * application at any time, so only those active in the hour before the run are counted.
+ */
+$GLOBALS['tk_throttle_since'] = gmdate('Y-m-d H:i:s', time() - 3600);
+$GLOBALS['tk_throttle_before'] = tk_pdo()->query('SELECT throttle_key FROM login_throttle')->fetchAll(PDO::FETCH_COLUMN);
+
 /** @return array<string, int> */
 function tk_counts(): array
 {
@@ -69,6 +77,10 @@ function tk_counts(): array
     foreach (TK_TABLES as $table) {
         $counts[$table] = (int) tk_pdo()->query("SELECT COUNT(*) FROM `$table`")->fetchColumn();
     }
+
+    $recent = tk_pdo()->prepare('SELECT COUNT(*) FROM login_throttle WHERE last_attempt_at >= :since');
+    $recent->execute(['since' => $GLOBALS['tk_throttle_since']]);
+    $counts['login_throttle'] = (int) $recent->fetchColumn();
 
     return $counts;
 }
@@ -153,6 +165,13 @@ function tk_cleanup(): void
     $pdo->prepare('DELETE FROM alerts WHERE title LIKE :m')->execute(['m' => $marker]);
     $pdo->prepare('DELETE FROM devices WHERE hostname LIKE :m')->execute(['m' => $marker]);
     $pdo->prepare('DELETE FROM users WHERE username LIKE :m')->execute(['m' => $marker]);
+
+    $created = array_diff($pdo->query('SELECT throttle_key FROM login_throttle')->fetchAll(PDO::FETCH_COLUMN), $GLOBALS['tk_throttle_before']);
+
+    if ($created !== []) {
+        $pdo->prepare('DELETE FROM login_throttle WHERE throttle_key IN (' . implode(', ', array_fill(0, count($created), '?')) . ')')
+            ->execute(array_values($created));
+    }
 }
 
 /** Test double: a real connection that throws a chosen exception for statements containing a needle. */
@@ -207,7 +226,7 @@ function check(string $name, bool $ok, string $detail = ''): void
 function tk_finish(array $before): never
 {
     $after = tk_counts();
-    check('database back to its initial state (' . implode(', ', TK_TABLES) . ')', $after === $before,
+    check('database back to its initial state (' . implode(', ', TK_TABLES) . ', login_throttle)', $after === $before,
         json_encode(['before' => $before, 'after' => $after]));
 
     $failed = 0;
