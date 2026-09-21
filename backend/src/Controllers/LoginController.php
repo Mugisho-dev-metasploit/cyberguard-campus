@@ -89,4 +89,19 @@ final class LoginController
             ],
         ]);
     }
+
+    /**
+     * POST /logout (APP-07.3.2). The session to end is the one named by the session cookie,
+     * never anything sent in the body or the URL: the request body is not read. Always the
+     * same answer, so it never tells whether a session existed or who was signed in.
+     */
+    public function logout(HttpRequest $request): void
+    {
+        $this->sessionManager->logout();
+
+        HttpResponse::json([
+            'success' => true,
+            'message' => 'Logged out successfully.',
+        ]);
+    }
 }

@@ -140,6 +140,11 @@ $router->post(
     [$loginController, 'login']
 );
 
+$router->post(
+    '/logout',
+    [$loginController, 'logout']
+);
+
 $router->get(
     '/api/incidents',
     [$incidentController, 'index'],

@@ -13,6 +13,7 @@ Use the XAMPP PHP (`/opt/lampp/bin/php`): it provides `pdo_mysql` and `pdo_sqlit
 | Suite | Covers |
 |---|---|
 | `SessionExpirationTest.php` | 6-hour absolute session (APP-03.6), in-memory SQLite |
+| `LogoutTest.php` | `POST /logout` (APP-07.3.2), real front controller over HTTP: session deleted server-side and cookie expired with its original attributes, old ID → 401, same generic 200 for valid, absent, unknown, corrupted or expired sessions, no session created, sign-in again after logout, POST only, client-supplied IDs/roles ignored |
 | `SessionRevocationTest.php` | account re-read on every protected request (APP-07.3.1), real front controller over HTTP: inactive, locked, deleted or soft-deleted account → 401 and session destroyed, role changes applied on the next request, client-supplied role ignored, no session created for anonymous requests, APP-06 close rule intact |
 | `IncidentWorkflowTest.php` | state machine (36 combinations × analyst/admin), close reserved to admin, history, lifecycle timestamps, rejected fields and values, rollback at every write step, column allow-list, read-only detail |
 | `IncidentConcurrencyTest.php` | row lock with two real processes: stale transition refused, chained transitions, duplicate transition as no-op, role under contention |

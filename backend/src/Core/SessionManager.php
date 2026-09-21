@@ -227,6 +227,21 @@ final class SessionManager
     }
 
     /**
+     * Signs out (APP-07.3.2): ends the session presented by the browser cookie, whatever its
+     * state (valid, expired, unknown or already destroyed). Without a session cookie there is
+     * nothing to end and no session is created. The same outcome in every case, by design.
+     */
+    public function logout(): void
+    {
+        if (!isset($_COOKIE[$this->sessionName()])) {
+            return;
+        }
+
+        $this->start();
+        $this->destroy();
+    }
+
+    /**
      * Ends the session: clears its data, deletes it from the server store and expires the
      * browser cookie. The same ID cannot be used again (strict mode rejects unknown IDs).
      */
