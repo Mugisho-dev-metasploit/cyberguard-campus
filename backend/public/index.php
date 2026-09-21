@@ -61,7 +61,8 @@ $incidentService = new IncidentService(
 );
 
 $incidentController = new IncidentController(
-    $incidentService
+    incidentService: $incidentService,
+    sessionManager: $sessionManager,
 );
 
 $eventRepository = new EventRepository(
@@ -141,6 +142,21 @@ $router->post(
 $router->get(
     '/api/incidents',
     [$incidentController, 'index'],
+    [
+        [$authenticationMiddleware, 'handle'],
+        static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {
+            $authorizationMiddleware->handle(
+                $request,
+                ['viewer', 'analyst', 'admin'],
+                $next,
+            );
+        },
+    ]
+);
+
+$router->get(
+    '/api/incidents/{id}',
+    [$incidentController, 'show'],
     [
         [$authenticationMiddleware, 'handle'],
         static function (HttpRequest $request, callable $next) use ($authorizationMiddleware): void {

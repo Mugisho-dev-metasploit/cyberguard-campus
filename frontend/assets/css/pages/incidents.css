@@ -810,6 +810,141 @@ button.incident-row:hover {
   line-height: 1.9;
 }
 
+/* Next step: a single workflow action, or the reason none is offered. */
+.status-controls-single {
+  grid-template-columns: auto;
+  justify-content: start;
+}
+
+.status-action {
+  min-width: 160px;
+}
+
+.status-note-final {
+  color: var(--text-soft);
+  font-size: var(--text-sm);
+}
+
+/* History: oldest first, one entry per recorded change (from the API only). */
+.history-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.history-entry {
+  display: grid;
+  gap: var(--space-1);
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--accent);
+  font-size: var(--text-sm);
+}
+
+.history-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.history-action {
+  font-weight: 600;
+}
+
+.history-time {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-change {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-soft);
+}
+
+.history-arrow {
+  color: var(--text-muted);
+}
+
+.history-new {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.history-meta.is-missing {
+  font-style: italic;
+}
+
+.history-role {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-soft);
+  font-size: var(--text-2xs);
+}
+
+.history-comment {
+  color: var(--text-soft);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* Linked records: public summaries of the related alert and device. */
+.linked-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.linked-item {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-0);
+}
+
+.linked-kind {
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+
+.linked-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.linked-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.linked-meta time,
+.linked-fact {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 .case-placeholder {
   display: grid;
   justify-items: center;

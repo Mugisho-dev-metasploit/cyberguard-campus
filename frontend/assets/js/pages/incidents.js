@@ -1,19 +1,23 @@
 /**
  * CYBERGUARD CAMPUS — Incidents (Incident Command Center).
- * Data: GET /api/incidents (viewer, analyst, admin), PATCH /api/incidents/{id} (analyst, admin).
- * Filtering, sorting and paging are client-side: the backend returns every incident, newest first.
+ * Data: GET /api/incidents (queue), GET /api/incidents/{id} (case file: incident, links, history),
+ * PATCH /api/incidents/{id} (status). Filtering, sorting and paging of the queue are client-side.
  *
- * The UI never shows a status change before the API confirms it, and always renders
- * the incident exactly as the API returned it after an update.
+ * The backend is the authority: the case file shows what GET /api/incidents/{id} returned, only
+ * the next status of the workflow is offered, and after a change the case file is read again from
+ * the server (history and lifecycle times are never built here). The signed-in user's role is not
+ * available to the frontend (no endpoint exposes it and nothing is stored): an action the server
+ * refuses with 403 is withdrawn for the rest of this page's life, in memory only.
  */
 
-import { ApiError, getIncidents, updateIncident } from '../api.js';
+import { ApiError, getIncident, getIncidents, updateIncident } from '../api.js';
 import { LOGIN_PAGE } from '../auth.js';
 import { barList } from '../charts.js';
 import {
   INCIDENT_STATUSES,
   clearChildren,
   describeError,
+  deviceStatusTag,
   el,
   formatClockTime,
   formatCount,
@@ -21,6 +25,7 @@ import {
   formatIncidentStatus,
   formatRelativeTime,
   formatSeverity,
+  humanize,
   icon,
   incidentStatusTag,
   parseApiDate,
@@ -28,6 +33,7 @@ import {
   severityLevel,
   severityTag,
   stateBlock,
+  statusTag,
   toDateTimeAttribute,
 } from '../format.js';
 
@@ -40,6 +46,22 @@ const SEVERITY_OPTIONS = [4, 3, 2, 1];
 const ACTIVE_STATUSES = ['open', 'acknowledged', 'investigating', 'contained'];
 const SORT_OPTIONS = ['newest', 'oldest', 'severity', 'priority', 'updated'];
 const OWNER_OPTIONS = ['assigned', 'unassigned'];
+
+// Incident workflow, as enforced by the backend: one next status for each status; closed is final.
+const NEXT_STATUS = {
+  open: 'acknowledged',
+  acknowledged: 'investigating',
+  investigating: 'contained',
+  contained: 'resolved',
+  resolved: 'closed',
+};
+const ACTION_LABELS = {
+  acknowledged: 'Acknowledge',
+  investigating: 'Investigate',
+  contained: 'Contain',
+  resolved: 'Resolve',
+  closed: 'Close',
+};
 
 // Backend ENUM, highest first.
 const PRIORITIES = ['critical', 'high', 'medium', 'low'];
@@ -104,6 +126,16 @@ let isLoading = false;
 let isUpdating = false;
 let caseFlash = null;
 let searchTimer = 0;
+
+// Case file of the selected incident, as returned by GET /api/incidents/{id}.
+// state: 'idle' | 'loading' | 'ready' | 'error'. `request` discards answers for an older selection.
+let detail = { id: null, state: 'idle', incident: null, history: [], error: null };
+let detailRequest = 0;
+
+// Learned from the server's 403 answers during this page's life (never stored): the account
+// cannot close incidents, or cannot change incidents at all.
+let closeDenied = false;
+let changesDenied = false;
 let announceTimer = 0;
 
 /* Helpers ----------------------------------------------------------------------- */
@@ -677,8 +709,11 @@ function setFeedback(node, { state, message, action }) {
   }
 }
 
-/** User-facing copy for a failed PATCH. Never exposes backend messages. */
-function updateFailure(error) {
+/**
+ * User-facing copy for a failed PATCH. Only the backend's 422 reason (written for the client)
+ * is shown as is; every other message is the page's own.
+ */
+function updateFailure(error, next) {
   const kind = error && error.kind;
   const status = error && error.status;
   const reload = { label: 'Reload incidents', onClick: retryFromView };
@@ -688,7 +723,11 @@ function updateFailure(error) {
   }
 
   if (kind === 'forbidden') {
-    return { message: 'Your role cannot change incident status. Ask an analyst or an administrator.' };
+    return {
+      message: next === 'closed'
+        ? 'Insufficient permissions. Closing an incident requires an administrator.'
+        : 'Insufficient permissions. Your account can view incidents but not change their status.',
+    };
   }
 
   if (kind === 'timeout' || kind === 'network') {
@@ -700,83 +739,108 @@ function updateFailure(error) {
   }
 
   if (status === 404) {
-    return { message: 'This incident no longer exists. Reload to see the current incidents.', action: reload };
+    return { message: 'Incident not found.', action: reload };
   }
 
   if (status === 400 || status === 422) {
-    return { message: 'The status change was rejected. Reload the incident and try again.', action: reload };
+    return { message: (error && error.detail) || 'The status change was rejected. Reload the incident and try again.', action: reload };
   }
 
-  return { message: `The update failed (HTTP ${status || 'error'}). Reload to confirm the current status.`, action: reload };
+  return { message: 'Unable to update incident.', action: reload };
 }
 
-function statusForm(incident) {
-  const select = el('select', { className: 'select', attrs: { id: 'case-status', name: 'status' } });
+/** Public user fields from the API (never an email: the API does not expose one). */
+function userLabel(user, id) {
+  if (user && typeof user === 'object') {
+    const name = [text(user.first_name), text(user.last_name)].filter(Boolean).join(' ');
+    const username = text(user.username);
 
-  INCIDENT_STATUSES.forEach((status) => {
-    const option = el('option', { text: formatIncidentStatus(status) });
-    option.value = status;
-    select.append(option);
-  });
+    if (name && username) {
+      return `${name} (${username})`;
+    }
 
-  const known = INCIDENT_STATUSES.includes(incident.status);
-
-  if (!known) {
-    select.prepend(el('option', { text: 'Unknown status', attrs: { value: '', disabled: '' } }));
+    if (name || username) {
+      return name || username;
+    }
   }
 
-  select.value = known ? incident.status : '';
+  return Number.isSafeInteger(id) && id > 0 ? `User #${id}` : null;
+}
 
-  const submit = el('button', {
-    className: 'button button-primary',
-    attrs: { type: 'submit', id: 'case-status-submit' },
-  }, [el('span', { text: 'Update status' })]);
+function assigneeLabel(incident) {
+  return userLabel(incident.assignee, incident.assigned_to) || 'Unassigned';
+}
 
+function focusCase() {
+  const target = document.getElementById('case-action') || document.getElementById('case-title');
+
+  if (target) {
+    target.focus();
+  }
+}
+
+/** The only status change the workflow allows next, or why none is offered. */
+function statusActions(incident) {
   const feedback = el('p', { className: 'case-feedback', attrs: { id: 'case-feedback' } });
   feedback.hidden = true;
 
-  const syncSubmit = () => {
-    submit.disabled = isUpdating || select.value === '' || select.value === incident.status;
-  };
+  const known = INCIDENT_STATUSES.includes(incident.status);
+  const next = known ? NEXT_STATUS[incident.status] : undefined;
+  const parts = [el('p', { className: 'field-label', text: 'Next step' })];
+  let note = null;
 
-  select.addEventListener('change', () => {
-    feedback.hidden = true;
-    syncSubmit();
-  });
-  syncSubmit();
+  if (!known) {
+    note = 'The recorded status is not recognised, so no status change is offered.';
+  } else if (!next) {
+    note = 'Closed incidents are final. No further status change is possible.';
+  } else if (changesDenied) {
+    note = 'Your account can view incidents but not change their status.';
+  } else if (next === 'closed' && closeDenied) {
+    note = 'Closing an incident requires an administrator.';
+  }
 
-  const form = el('form', { className: 'status-form', attrs: { novalidate: '' } }, [
-    el('label', { className: 'field-label', text: 'Change status', attrs: { for: 'case-status' } }),
-    el('div', { className: 'status-controls' }, [select, submit]),
-    el('p', { className: 'status-note', text: 'Status changes require an analyst or administrator role.' }),
-    feedback,
-  ]);
+  if (note) {
+    parts.push(el('p', { className: 'status-note status-note-final', text: note }));
+  } else {
+    const button = el('button', {
+      className: 'button button-primary status-action',
+      attrs: { type: 'button', id: 'case-action', 'aria-describedby': 'case-action-note' },
+    }, [el('span', { text: ACTION_LABELS[next] })]);
 
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    submitStatus(incident, select, submit, feedback);
-  });
+    button.disabled = isUpdating;
+    button.addEventListener('click', () => submitTransition(incident, next, button, feedback));
+
+    parts.push(
+      el('div', { className: 'status-controls status-controls-single' }, [button]),
+      el('p', {
+        className: 'status-note',
+        attrs: { id: 'case-action-note' },
+        text: next === 'closed'
+          ? 'Moves the incident to Closed. Only administrators can close an incident; the server checks your role.'
+          : `Moves the incident to ${formatIncidentStatus(next)}. Analysts and administrators can take this step.`,
+      }),
+    );
+  }
+
+  parts.push(feedback);
 
   if (caseFlash && caseFlash.id === incident.id) {
     setFeedback(feedback, caseFlash);
     caseFlash = null;
   }
 
-  return form;
+  return el('div', { className: 'status-form' }, parts);
 }
 
-async function submitStatus(incident, select, submit, feedback) {
-  const next = select.value;
-
-  if (isUpdating || !INCIDENT_STATUSES.includes(next) || next === incident.status) {
+async function submitTransition(incident, next, button, feedback) {
+  if (isUpdating || NEXT_STATUS[incident.status] !== next) {
     return;
   }
 
   isUpdating = true;
-  select.disabled = true;
-  submit.disabled = true;
-  submit.setAttribute('aria-busy', 'true');
-  submit.firstChild.textContent = 'Updating…';
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  button.firstChild.textContent = 'Updating…';
   setFeedback(feedback, { state: 'pending', message: `Changing status to ${formatIncidentStatus(next)}…` });
 
   let updated;
@@ -789,17 +853,32 @@ async function submitStatus(incident, select, submit, feedback) {
     }
   } catch (error) {
     isUpdating = false;
-    select.disabled = false;
-    submit.disabled = false;
-    submit.setAttribute('aria-busy', 'false');
-    submit.firstChild.textContent = 'Update status';
-    const failure = updateFailure(error);
-    setFeedback(feedback, { state: 'error', ...failure });
+    const failure = updateFailure(error, next);
+
+    if (error && error.kind === 'forbidden') {
+      // The server refused this step for this account: stop offering it on this page.
+      if (next === 'closed') {
+        closeDenied = true;
+      } else {
+        changesDenied = true;
+      }
+
+      caseFlash = { id: incident.id, state: 'error', ...failure };
+      renderCase();
+      focusCase();
+    } else {
+      button.disabled = false;
+      button.setAttribute('aria-busy', 'false');
+      button.firstChild.textContent = ACTION_LABELS[next];
+      setFeedback(feedback, { state: 'error', ...failure });
+    }
+
     announce(failure.message);
     return;
   }
 
-  // Confirmed by the API: render exactly what it returned.
+  // Confirmed by the API. The queue row takes the PATCH answer; the case file (history,
+  // lifecycle times) is read again from the server, never assembled here.
   isUpdating = false;
   incidents = incidents.map((item) => (item.id === updated.id ? updated : item));
   const message = `Status changed to ${formatIncidentStatus(updated.status)}.`;
@@ -808,28 +887,118 @@ async function submitStatus(incident, select, submit, feedback) {
   populateFilterOptions();
   renderPipeline();
   renderQueue();
-  renderCase();
   announce(message);
-
-  const newSelect = document.getElementById('case-status');
-
-  if (newSelect) {
-    newSelect.focus();
-  }
+  await loadDetail(updated.id, { keepContent: true, focusAfter: true });
 }
 
-function caseContent(incident) {
+function statusLabel(value) {
+  return INCIDENT_STATUSES.includes(value) ? formatIncidentStatus(value) : text(value) || 'Unknown';
+}
+
+function historyEntry(entry) {
+  const action = entry.action === 'status_changed' ? 'Status changed' : humanize(entry.action) || 'Recorded change';
+  const actor = userLabel(entry.actor, entry.user_id);
+  const parts = [
+    el('div', { className: 'history-head' }, [
+      el('span', { className: 'history-action', text: action }),
+      timeNode(entry.created_at, 'Time not recorded', 'history-time'),
+    ]),
+  ];
+
+  if (entry.previous_status || entry.new_status) {
+    parts.push(el('p', { className: 'history-change' }, [
+      el('span', { text: statusLabel(entry.previous_status) }),
+      el('span', { className: 'history-arrow', text: '→', attrs: { 'aria-hidden': 'true' } }),
+      el('span', { className: 'visually-hidden', text: ' to ' }),
+      el('span', { className: 'history-new', text: statusLabel(entry.new_status) }),
+    ]));
+  }
+
+  const actorLine = el('p', { className: actor ? 'history-meta' : 'history-meta is-missing' }, [
+    el('span', { text: actor ? `By ${actor}` : 'Actor no longer recorded' }),
+  ]);
+
+  if (entry.actor && typeof entry.actor === 'object' && text(entry.actor.role)) {
+    actorLine.append(el('span', { className: 'history-role', text: humanize(entry.actor.role) }));
+  }
+
+  parts.push(actorLine);
+
+  if (entry.previous_assignee !== entry.new_assignee) {
+    parts.push(el('p', {
+      className: 'history-meta',
+      text: `Assignment: ${userLabel(entry.previous_assignee_user, entry.previous_assignee) || 'Unassigned'} → ${userLabel(entry.new_assignee_user, entry.new_assignee) || 'Unassigned'}`,
+    }));
+  }
+
+  const comment = text(entry.comment);
+
+  if (comment) {
+    parts.push(el('p', { className: 'history-comment', text: comment }));
+  }
+
+  return el('li', { className: 'history-entry' }, parts);
+}
+
+function historyList(history) {
+  if (history.length === 0) {
+    return el('p', { className: 'case-text is-missing', text: 'No history available.' });
+  }
+
+  return el('ol', { className: 'history-list', attrs: { 'aria-label': 'Incident history, oldest first' } }, history.map(historyEntry));
+}
+
+function linkedRecords(incident) {
+  const items = [];
+  const alert = incident.alert && typeof incident.alert === 'object' ? incident.alert : null;
+  const device = incident.device && typeof incident.device === 'object' ? incident.device : null;
+
+  if (alert) {
+    items.push(el('li', { className: 'linked-item' }, [
+      el('span', { className: 'linked-kind', text: 'Alert' }),
+      el('p', { className: 'linked-title', text: text(alert.title) || `Alert #${alert.id}` }),
+      el('div', { className: 'linked-meta' }, [
+        severityTag(alert.severity),
+        statusTag(alert.status),
+        timeNode(alert.detected_at, 'Detection time not recorded'),
+      ]),
+    ]));
+  }
+
+  if (device) {
+    const facts = [text(device.ip_address), humanize(device.device_type), humanize(device.environment)].filter(Boolean);
+    items.push(el('li', { className: 'linked-item' }, [
+      el('span', { className: 'linked-kind', text: 'Device' }),
+      el('p', { className: 'linked-title mono', text: text(device.hostname) || `Device #${device.id}` }),
+      el('div', { className: 'linked-meta' }, [
+        deviceStatusTag(device.status),
+        ...facts.map((fact) => el('span', { className: 'linked-fact', text: fact })),
+      ]),
+    ]));
+  }
+
+  if (items.length === 0) {
+    return el('p', { className: 'case-text is-missing', text: 'No alert or device is linked to this incident.' });
+  }
+
+  return el('ul', { className: 'linked-list' }, items);
+}
+
+function caseContent(incident, history) {
   const description = text(incident.description);
+  const resolution = text(incident.resolution);
 
   const details = el('dl', { className: 'case-details' }, [
     el('dt', { text: 'Priority' }), el('dd', { text: formatPriority(incident.priority) }),
-    el('dt', { text: 'Assigned to' }), el('dd', { className: isAssigned(incident) ? '' : 'is-missing', text: ownerLabel(incident) }),
+    el('dt', { text: 'Assigned to' }), el('dd', { className: userLabel(incident.assignee, incident.assigned_to) ? '' : 'is-missing', text: assigneeLabel(incident) }),
+    el('dt', { text: 'Resolution' }), el('dd', { className: resolution ? 'case-text' : 'is-missing', text: resolution || 'No resolution recorded' }),
     el('dt', { text: 'Created' }), el('dd', {}, [timeNode(incident.created_at, 'Not recorded')]),
     el('dt', { text: 'Last updated' }), el('dd', {}, [timeNode(incident.updated_at, 'Not recorded')]),
     el('dt', { text: 'Incident ID' }), el('dd', { className: 'mono', text: text(incident.incident_uuid) || '—' }),
     el('dt', { text: 'Record' }), el('dd', { className: 'mono', text: `#${incident.id}` }),
   ]);
 
+  // Lifecycle times exactly as stored; a missing one is stated, never estimated.
   const log = el('ol', { className: 'response-log' }, [
     ['Detected', incident.detected_at],
     ['Acknowledged', incident.acknowledged_at],
@@ -844,18 +1013,20 @@ function caseContent(incident) {
   return el('article', { className: `case ${severityClass(incident.severity)}`, attrs: { 'aria-labelledby': 'case-title' } }, [
     el('header', { className: 'case-head' }, [
       el('p', { className: 'case-number', text: text(incident.incident_number) || `Incident #${incident.id}` }),
-      el('h2', { className: 'case-title', text: text(incident.title) || 'Untitled incident', attrs: { id: 'case-title' } }),
+      el('h2', { className: 'case-title', text: text(incident.title) || 'Untitled incident', attrs: { id: 'case-title', tabindex: '-1' } }),
       el('div', { className: 'case-tags' }, [
         severityTag(incident.severity),
         incidentStatusTag(incident.status),
         priorityTag(incident.priority),
       ]),
     ]),
-    caseSection('Response stage', [stageTrack(incident.status), statusForm(incident)]),
+    caseSection('Response stage', [stageTrack(incident.status), statusActions(incident)]),
     caseSection('Description', [
       el('p', { className: description ? 'case-text' : 'case-text is-missing', text: description || 'No description provided.' }),
     ]),
     caseSection('Response timeline', [log]),
+    caseSection('History', [historyList(history)]),
+    caseSection('Linked records', [linkedRecords(incident)]),
     caseSection('Details', [details]),
   ]);
 }
@@ -868,9 +1039,43 @@ function casePlaceholder() {
   ]);
 }
 
+function caseLoading() {
+  return el('div', { className: 'case-placeholder', attrs: { 'aria-busy': 'true' } }, [
+    el('span', { className: 'state-icon' }, [icon('clock')]),
+    el('p', { className: 'case-placeholder-title', text: 'Loading case file…' }),
+  ]);
+}
+
+function caseError(error) {
+  const base = describeError(error, 'this incident');
+  const notFound = error && error.status === 404;
+  const retry = { label: 'Retry', onClick: () => loadDetail(selectedId) };
+
+  return stateBlock({
+    variant: 'error',
+    iconName: base.kind === 'unauthorized' || base.kind === 'forbidden' ? 'lock' : 'warning',
+    title: notFound ? 'Incident not found.' : base.title,
+    message: notFound ? 'It may have been removed. Reload the queue to see the current incidents.' : base.message,
+    action: notFound ? { label: 'Reload incidents', onClick: retryFromView } : base.kind === 'forbidden' || base.kind === 'unauthorized' ? undefined : retry,
+  });
+}
+
+/** Case file for the selected incident, from the detail endpoint only. */
+function caseView() {
+  if (detail.id !== selectedId || detail.state === 'idle' || detail.state === 'loading') {
+    return caseLoading();
+  }
+
+  if (detail.state === 'error') {
+    return caseError(detail.error);
+  }
+
+  return caseContent(detail.incident, detail.history);
+}
+
 /** Renders the case file where it belongs for the current viewport. */
 function renderCase() {
-  const incident = selectedId !== null ? findIncident(selectedId) : null;
+  const hasSelection = selectedId !== null && findIncident(selectedId) !== null;
   const showPanel = SPLIT_QUERY.matches && incidents.length > 0;
 
   dom.grid.classList.toggle('has-case', showPanel);
@@ -878,17 +1083,61 @@ function renderCase() {
   clearChildren(dom.caseFile);
 
   if (showPanel) {
-    dom.caseFile.append(incident ? caseContent(incident) : casePlaceholder());
+    dom.caseFile.append(hasSelection ? caseView() : casePlaceholder());
   }
 
   if (dom.dialog.open) {
     clearChildren(dom.dialogBody);
 
-    if (incident && !SPLIT_QUERY.matches) {
-      dom.dialogBody.append(caseContent(incident));
+    if (hasSelection && !SPLIT_QUERY.matches) {
+      dom.dialogBody.append(caseView());
     } else {
       dom.dialog.close();
     }
+  }
+}
+
+function isHistoryEntry(value) {
+  return value !== null && typeof value === 'object' && Number.isSafeInteger(value.id);
+}
+
+/**
+ * Reads the case file from GET /api/incidents/{id}. `keepContent` leaves the current case on
+ * screen while re-reading the same incident (after an update, on refresh).
+ */
+async function loadDetail(id, { keepContent = false, focusAfter = false } = {}) {
+  const request = ++detailRequest;
+  const sameReady = detail.id === id && detail.state === 'ready';
+
+  if (!(keepContent && sameReady)) {
+    detail = { id, state: 'loading', incident: null, history: [], error: null };
+    renderCase();
+  }
+
+  try {
+    const data = await getIncident(id);
+
+    if (!isIncident(data.incident) || data.incident.id !== id) {
+      throw new ApiError('The API returned an unexpected response.', { status: 200, kind: 'invalid-response' });
+    }
+
+    if (request !== detailRequest) {
+      return;
+    }
+
+    detail = { id, state: 'ready', incident: data.incident, history: data.history.filter(isHistoryEntry), error: null };
+  } catch (error) {
+    if (request !== detailRequest) {
+      return;
+    }
+
+    detail = { id, state: 'error', incident: null, history: [], error };
+  }
+
+  renderCase();
+
+  if (focusAfter) {
+    focusCase();
   }
 }
 
@@ -910,6 +1159,13 @@ function selectIncident(id) {
   writeStateToUrl();
   updateRowSelection();
 
+  // A case file already read for this incident is reused; otherwise it is fetched.
+  const needsLoad = !(detail.id === id && detail.state === 'ready');
+
+  if (needsLoad) {
+    detail = { id, state: 'loading', incident: null, history: [], error: null };
+  }
+
   if (SPLIT_QUERY.matches) {
     // Focus stays in the queue so keyboard users can keep moving through incidents.
     renderCase();
@@ -917,8 +1173,12 @@ function selectIncident(id) {
     announce(`Case file shows ${text(incident.incident_number) || `incident #${id}`}.`);
   } else {
     clearChildren(dom.dialogBody);
-    dom.dialogBody.append(caseContent(findIncident(id)));
+    dom.dialogBody.append(caseView());
     dom.dialog.showModal();
+  }
+
+  if (needsLoad) {
+    loadDetail(id);
   }
 }
 
@@ -1076,6 +1336,9 @@ async function loadIncidents({ openSelected = false } = {}) {
 
   if (openSelected && selectedId !== null && !SPLIT_QUERY.matches) {
     selectIncident(selectedId);
+  } else if (selectedId !== null) {
+    // The case file is read again with the queue (refresh, first load in the side panel).
+    loadDetail(selectedId, { keepContent: true });
   }
 }
 

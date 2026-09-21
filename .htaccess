@@ -1,0 +1,22 @@
+# CYBERGUARD CAMPUS — web exposure policy (APP-07.2).
+#
+# The repository lives inside Apache's document root, so nothing in it is public by default.
+# Only two directories re-allow access in their own .htaccess:
+#   frontend/        the static web interface
+#   backend/public/  the API front controller (index.php)
+# Everything else (.env, .git, backend/src, backend/tests, backend/database, backend/vendor,
+# composer files, docs, infrastructure, scripts…) is refused.
+#
+# Requires "AllowOverride All" on the document root (XAMPP default). A server-level
+# equivalent is documented in backend/tests/README.md for hosts where .htaccess is disabled.
+
+Options -Indexes
+Require all denied
+
+# Dotfiles and dot-directories (.env, .git/…, .gitignore, .htaccess) are never served, even
+# inside the allowed directories; answered 404 so their existence is not confirmed.
+RedirectMatch 404 "/\.[^/]*(/|$)"
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

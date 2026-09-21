@@ -6,12 +6,15 @@ namespace CyberGuard\Campus\Controllers;
 
 use CyberGuard\Campus\Core\HttpRequest;
 use CyberGuard\Campus\Core\HttpResponse;
+use CyberGuard\Campus\Core\SessionManager;
+use CyberGuard\Campus\Exceptions\AuthorizationException;
 use CyberGuard\Campus\Services\IncidentService;
 
 final class IncidentController
 {
     public function __construct(
         private readonly IncidentService $incidentService,
+        private readonly SessionManager $sessionManager,
     ) {
     }
 
@@ -39,8 +42,56 @@ final class IncidentController
         ]);
     }
 
+    /** GET /api/incidents/{id} — any authenticated role (enforced on the route). */
+    public function show(HttpRequest $request): void
+    {
+        $incidentId = $request->routeParam('id');
+
+        if ($incidentId === null || !ctype_digit($incidentId)) {
+            $this->error('Invalid incident identifier.', 400);
+
+            return;
+        }
+
+        try {
+            $detail = $this->incidentService->getIncidentDetail((int) $incidentId);
+        } catch (\Throwable $exception) {
+            // Same rule as update(): only "not found" is a client error; nothing internal leaks.
+            if (
+                $exception instanceof \RuntimeException
+                && !$exception instanceof \PDOException
+                && $exception->getCode() === 404
+            ) {
+                $this->error('Incident not found.', 404);
+
+                return;
+            }
+
+            $this->error('Unable to retrieve incident.', 500);
+
+            return;
+        }
+
+        HttpResponse::json([
+            'success' => true,
+            'message' => 'Incident retrieved successfully.',
+            'data' => $detail,
+        ]);
+    }
+
     public function update(HttpRequest $request): void
     {
+        // Who is acting, and with which role: from the authenticated session only, never from
+        // the payload. (The route middleware already answered 401/403 for no session / viewer.)
+        $actorId = $this->sessionManager->userId();
+        $actorRole = $this->sessionManager->role();
+
+        if ($actorId === null || $actorRole === null) {
+            $this->error('Authentication required.', 401);
+
+            return;
+        }
+
         $incidentId = $request->routeParam('id');
 
         if ($incidentId === null || !ctype_digit($incidentId)) {
@@ -56,28 +107,30 @@ final class IncidentController
         }
 
         try {
-            $updatedIncident = $this->incidentService->updateIncident((int) $incidentId, $request->body());
+            $updatedIncident = $this->incidentService->updateIncident((int) $incidentId, $request->body(), $actorId, $actorRole);
         } catch (\InvalidArgumentException $exception) {
-            $statusCode = $exception->getCode();
-            $this->error(
-                $exception->getMessage(),
-                is_int($statusCode) && $statusCode >= 400 && $statusCode < 600
-                    ? $statusCode
-                    : 422,
-            );
+            // Validation and workflow errors: messages written by IncidentService for the client.
+            $this->error($exception->getMessage(), 422);
 
             return;
-        } catch (\RuntimeException $exception) {
-            $statusCode = $exception->getCode();
-            $this->error(
-                $exception->getMessage(),
-                is_int($statusCode) && $statusCode >= 400 && $statusCode < 600
-                    ? $statusCode
-                    : 500,
-            );
+        } catch (AuthorizationException) {
+            $this->error('Insufficient permissions.', 403);
 
             return;
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            // Everything else is internal (database, reload, unexpected state): the transaction
+            // is already rolled back and no internal detail leaves the server. PDOException and
+            // other RuntimeExceptions land here too; only "incident not found" is a client error.
+            if (
+                $exception instanceof \RuntimeException
+                && !$exception instanceof \PDOException
+                && $exception->getCode() === 404
+            ) {
+                $this->error('Incident not found.', 404);
+
+                return;
+            }
+
             $this->error('Unable to update incident.', 500);
 
             return;

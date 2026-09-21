@@ -98,6 +98,16 @@ export async function request(method, path, body) {
     if (!response.ok) {
       const error = errorForStatus(response.status);
 
+      // 422 messages are written by the backend for the client (validation, workflow); keep them
+      // so the page can show the precise reason. No other error body is ever read or shown.
+      if (response.status === 422) {
+        const body = await readJson(response);
+
+        if (body && typeof body.message === 'string' && body.message.trim() !== '') {
+          error.detail = body.message.trim().slice(0, 300);
+        }
+      }
+
       if (error.kind === 'unauthorized' && isProtectedPath(path) && unauthorizedHandler) {
         unauthorizedHandler();
       }
@@ -149,6 +159,24 @@ export function getDevices() {
 
 export function getIncidents() {
   return getData('/api/incidents');
+}
+
+/**
+ * GET /api/incidents/{id} — one incident with its links and its history (oldest first):
+ * resolves with `{ incident, history }`.
+ */
+export async function getIncident(id) {
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw new ApiError('Invalid incident identifier.', { status: 400, kind: 'http' });
+  }
+
+  const data = await getData(`/api/incidents/${id}`);
+
+  if (!data || typeof data !== 'object' || !data.incident || typeof data.incident !== 'object' || !Array.isArray(data.history)) {
+    throw new ApiError('The API returned an unexpected response.', { status: 200, kind: 'invalid-response' });
+  }
+
+  return data;
 }
 
 /**

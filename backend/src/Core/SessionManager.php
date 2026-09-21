@@ -4,8 +4,18 @@ declare(strict_types=1);
 
 namespace CyberGuard\Campus\Core;
 
+use Closure;
 use RuntimeException;
 
+/**
+ * Server-side session for authenticated users.
+ *
+ * Absolute lifetime: a session is valid for SESSION_LIFETIME_SECONDS from the moment the
+ * user signed in (T0), whatever the activity in between. T0 is written once, in
+ * authenticate(), and never refreshed by later requests (no sliding expiration).
+ * The decision is made on the server from $_SESSION only; nothing sent by the client
+ * is read to decide it.
+ */
 final class SessionManager
 {
     private const SESSION_STARTED_KEY = '__session_started';
@@ -15,14 +25,27 @@ final class SessionManager
     private const SESSION_ROLE = 'role';
     private const SESSION_AUTHENTICATED = 'authenticated';
 
-    private const SESSION_LIFETIME = 1800;
+    /** 6 hours. Expired when now >= T0 + SESSION_LIFETIME_SECONDS. */
+    public const SESSION_LIFETIME_SECONDS = 21600;
 
-    public function start(): void
+    /** Set once the session has been destroyed in this request: it is not restarted. */
+    private bool $invalidated = false;
+
+    /**
+     * @param (Closure(): int)|null $clock Current Unix time; defaults to time(). Injected by tests only.
+     */
+    public function __construct(
+        private readonly ?Closure $clock = null,
+    ) {
+    }
+
+    private function now(): int
     {
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            return;
-        }
+        return $this->clock === null ? time() : ($this->clock)();
+    }
 
+    private function configureSessionSettings(): void
+    {
         if (headers_sent()) {
             throw new RuntimeException(
                 'Cannot start session because headers have already been sent.'
@@ -35,8 +58,11 @@ final class SessionManager
             $_ENV['SESSION_NAME'] ?? 'cyberguard_session'
         );
 
+        // The browser cookie ends with the session. PHP only sends it when a session ID is
+        // issued (sign-in), so its expiry is T0 + 6h and is not pushed back by activity.
+        // The server check in isAuthenticated() remains the authority.
         session_set_cookie_params([
-            'lifetime' => 0,
+            'lifetime' => self::SESSION_LIFETIME_SECONDS,
             'path' => '/',
             'secure' => $isProduction,
             'httponly' => true,
@@ -63,16 +89,33 @@ final class SessionManager
             'Lax'
         );
 
+        // Keep server-side session data at least as long as a session may be valid,
+        // so an idle but unexpired session is not garbage-collected early.
+        ini_set(
+            'session.gc_maxlifetime',
+            (string) self::SESSION_LIFETIME_SECONDS
+        );
+
         if ($isProduction) {
             ini_set(
                 'session.cookie_secure',
                 '1'
             );
         }
+    }
 
+    /**
+     * Opens the session sent by the browser, if any. Never writes the session start time:
+     * only authenticate() does, so later requests cannot extend the session.
+     */
+    public function start(): void
+    {
+        if ($this->invalidated || session_status() === PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        $this->configureSessionSettings();
         session_start();
-
-        $_SESSION[self::SESSION_STARTED_KEY] = time();
     }
 
     public function authenticate(
@@ -80,20 +123,29 @@ final class SessionManager
         string $userUuid,
         string $role,
     ): void {
+        // Session fixation protection: resume whatever session the browser presented, drop
+        // its data, then move to a new ID and delete the old one from the store.
+        // (A custom ID forced with session_id() would be rejected by strict mode.)
+        $this->invalidated = false;
         $this->start();
-
+        session_unset();
         session_regenerate_id(true);
 
         $_SESSION[self::SESSION_USER_ID] = $userId;
         $_SESSION[self::SESSION_USER_UUID] = $userUuid;
         $_SESSION[self::SESSION_ROLE] = $role;
         $_SESSION[self::SESSION_AUTHENTICATED] = true;
-        $_SESSION[self::SESSION_STARTED_KEY] = time();
+        // T0: written here only, once per sign-in.
+        $_SESSION[self::SESSION_STARTED_KEY] = $this->now();
     }
 
     public function isAuthenticated(): bool
     {
         $this->start();
+
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return false;
+        }
 
         if (
             !isset($_SESSION[self::SESSION_AUTHENTICATED])
@@ -106,7 +158,7 @@ final class SessionManager
 
         if (
             !is_int($startedAt)
-            || (time() - $startedAt) > self::SESSION_LIFETIME
+            || $this->now() >= $startedAt + self::SESSION_LIFETIME_SECONDS
         ) {
             $this->destroy();
 
@@ -149,6 +201,10 @@ final class SessionManager
         return is_string($role) ? $role : null;
     }
 
+    /**
+     * Ends the session: clears its data, deletes it from the server store and expires the
+     * browser cookie. The same ID cannot be used again (strict mode rejects unknown IDs).
+     */
     public function destroy(): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -175,5 +231,6 @@ final class SessionManager
         }
 
         session_destroy();
+        $this->invalidated = true;
     }
 }
