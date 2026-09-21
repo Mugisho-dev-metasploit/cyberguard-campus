@@ -21,9 +21,28 @@ final class AuthenticationService
      */
     private const REFERENCE_HASH = '$2y$12$6fSr5qShUeQhRlXaL1k1..gJCs4nuZ.qzYDMhDOXfs541mHoKLXM.';
 
+    /**
+     * APP-07.4.4 — input bounds, checked before any database access. An identifier is matched
+     * against users.username (VARCHAR(50)) and users.email (VARCHAR(254)): nothing longer than
+     * 254 characters can match an account. The password never reaches the database; 1024 bytes
+     * leave room for any passphrase or generated password. Longer values are rejected, never
+     * truncated.
+     */
+    public const MAX_IDENTIFIER_LENGTH = 254;
+    public const MAX_PASSWORD_BYTES = 1024;
+
     public function __construct(
         private readonly UserRepository $userRepository,
     ) {
+    }
+
+    /** APP-07.4.4 — true when both values are within the bounds (identifier as it will be matched, trimmed). */
+    public static function withinLimits(
+        string $identifier,
+        #[\SensitiveParameter] string $password,
+    ): bool {
+        return mb_strlen(trim($identifier), 'UTF-8') <= self::MAX_IDENTIFIER_LENGTH
+            && strlen($password) <= self::MAX_PASSWORD_BYTES;
     }
 
     /**
@@ -36,7 +55,7 @@ final class AuthenticationService
     ): AuthenticationResult {
         $identifier = trim($identifier);
 
-        if ($identifier === '' || $password === '') {
+        if ($identifier === '' || $password === '' || !self::withinLimits($identifier, $password)) {
             return AuthenticationResult::failure();
         }
 

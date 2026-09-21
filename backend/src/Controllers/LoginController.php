@@ -29,6 +29,8 @@ final class LoginController
             || !is_string($password)
             || trim($identifier) === ''
             || $password === ''
+            // Oversized values (APP-07.4.4) are refused here, before the throttle and any query.
+            || !AuthenticationService::withinLimits($identifier, $password)
         ) {
             HttpResponse::json(
                 [
