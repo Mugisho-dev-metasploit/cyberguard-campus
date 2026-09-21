@@ -1,0 +1,305 @@
+/*
+ * CYBERGUARD CAMPUS — Dashboard (Security Overview)
+ * Page-specific layout only. Shared pieces live in components.css.
+ */
+
+.dashboard-section + .dashboard-section {
+  margin-top: var(--space-10);
+}
+
+/* Key Security Metrics ----------------------------------------------------- */
+
+.metrics-error:not(:empty) {
+  margin-bottom: var(--space-4);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.kpi-skeleton {
+  width: 64px;
+  height: 30px;
+}
+
+@container content (min-width: 340px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kpi-grid > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@container content (min-width: 600px) {
+  .kpi-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .kpi-grid > * {
+    grid-column: span 2;
+  }
+
+  .kpi-grid > :nth-child(n + 4),
+  .kpi-grid > :last-child {
+    grid-column: span 3;
+  }
+}
+
+@container content (min-width: 900px) {
+  .kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .kpi-grid > *,
+  .kpi-grid > :nth-child(n + 4),
+  .kpi-grid > :last-child {
+    grid-column: auto;
+  }
+}
+
+/* Recent Security Activity ------------------------------------------------- */
+
+.activity-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@container content (min-width: 960px) {
+  .activity-grid {
+    grid-template-columns: minmax(0, 1.8fr) minmax(290px, 1fr);
+  }
+}
+
+.alerts-panel .panel-body {
+  padding-top: 0;
+  padding-bottom: var(--space-2);
+}
+
+/* Alert feed row */
+
+.alert-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr) auto;
+  grid-template-areas: "severity main aside";
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-4) 0 var(--space-4) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.alert-row:last-child {
+  border-bottom: none;
+}
+
+/* Severity rail — shape + position, reinforced by the text tag. */
+.alert-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: var(--space-4);
+  bottom: var(--space-4);
+  width: 2px;
+  border-radius: 2px;
+  background: var(--sev);
+}
+
+.alert-severity {
+  grid-area: severity;
+}
+
+.alert-main {
+  grid-area: main;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.alert-title {
+  color: var(--text);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.alert-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.alert-source {
+  font-family: var(--font-mono);
+  color: var(--text-soft);
+}
+
+.alert-meta > * + *::before {
+  content: "·";
+  margin-right: var(--space-2);
+  color: var(--border-strong);
+}
+
+.alert-aside {
+  grid-area: aside;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.alert-time {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.alert-row.is-skeleton::before {
+  background: var(--border-strong);
+}
+
+.alert-row.is-skeleton .alert-main .skeleton:nth-child(1) {
+  width: 72%;
+  height: 12px;
+}
+
+.alert-row.is-skeleton .alert-main .skeleton:nth-child(2) {
+  width: 40%;
+  height: 10px;
+}
+
+.skeleton-severity {
+  width: 84px;
+  height: 22px;
+}
+
+.skeleton-time {
+  justify-self: end;
+  width: 72px;
+  height: 12px;
+}
+
+@container content (max-width: 619px) {
+  .alert-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "severity aside"
+      "main main";
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .alert-aside {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+}
+
+/* Alert severity mix (derived from the alerts returned by the API) */
+
+.mix-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-0);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.mix-bar-segment {
+  min-width: 0;
+  background: var(--sev);
+}
+
+.mix-list {
+  display: grid;
+}
+
+.mix-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.mix-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-0);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.mix-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--sev);
+}
+
+.mix-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mix-subheading {
+  margin: var(--space-5) 0 var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.status-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+.status-summary li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.status-summary .mix-count {
+  font-size: var(--text-xs);
+}
+
+.mix-note {
+  margin-top: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.mix-skeleton {
+  height: 10px;
+  margin-bottom: var(--space-3);
+}
+
+.mix-skeleton.is-medium {
+  width: 80%;
+}
+
+.mix-skeleton.is-short {
+  width: 60%;
+}

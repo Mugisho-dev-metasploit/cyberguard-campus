@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Devices | CYBERGUARD CAMPUS</title>
+    <meta name="description" content="CYBERGUARD CAMPUS network asset visibility and device inventory." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" href="assets/img/brand/favicon.png" />
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/ibm-plex-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/layout.css" />
+    <link rel="stylesheet" href="assets/css/navigation.css" />
+    <link rel="stylesheet" href="assets/css/components.css" />
+    <link rel="stylesheet" href="assets/css/pages/devices.css" />
+    <script type="module" src="assets/js/app.js"></script>
+    <script type="module" src="assets/js/pages/devices.js"></script>
+  </head>
+  <body data-page="devices">
+    <div id="app-shell"></div>
+
+    <main id="main-content" tabindex="-1">
+      <div class="devices-page">
+        <header class="page-header">
+          <div class="page-header-text">
+            <p class="eyebrow">Infrastructure</p>
+            <h1>Devices</h1>
+            <p class="page-subtitle">Network asset visibility and device inventory</p>
+          </div>
+
+          <div class="page-header-actions">
+            <p class="sync-status" id="sync-status">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-clock"></use></svg>
+              <span id="sync-status-text">Loading…</span>
+            </p>
+            <button class="button" id="devices-refresh" type="button">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-refresh"></use></svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </header>
+
+        <p class="visually-hidden" id="devices-announcer" role="status" aria-live="polite"></p>
+
+        <!-- Two separate questions: what the inventory records, and when each device was last observed. -->
+        <section class="observation" aria-labelledby="observation-title">
+          <div class="observation-heading">
+            <h2 class="observation-title" id="observation-title">Inventory overview</h2>
+            <p class="observation-total"><span id="devices-total">—</span> devices known</p>
+          </div>
+
+          <div class="observation-grid">
+            <div class="band" id="band-status">
+              <div class="band-head">
+                <h3 class="band-title">Recorded status</h3>
+                <p class="band-note">As stored in the inventory. Not a live connection check.</p>
+              </div>
+              <div class="band-bar" data-band-bar role="img" aria-label="Recorded status: no data yet"></div>
+              <ul class="band-legend" aria-label="Filter by recorded status">
+                <li><button class="band-item" type="button" data-filter="status" data-value="online" aria-pressed="false" disabled><span class="band-swatch" aria-hidden="true"></span><span class="band-label">Online</span><span class="band-count" data-count>—</span></button></li>
+                <li><button class="band-item" type="button" data-filter="status" data-value="degraded" aria-pressed="false" disabled><span class="band-swatch" aria-hidden="true"></span><span class="band-label">Degraded</span><span class="band-count" data-count>—</span></button></li>
+                <li><button class="band-item" type="button" data-filter="status" data-value="offline" aria-pressed="false" disabled><span class="band-swatch" aria-hidden="true"></span><span class="band-label">Offline</span><span class="band-count" data-count>—</span></button></li>
+                <li><button class="band-item" type="button" data-filter="status" data-value="unknown" aria-pressed="false" disabled><span class="band-swatch" aria-hidden="true"></span><span class="band-label">Unknown</span><span class="band-count" data-count>—</span></button></li>
+              </ul>
+            </div>
+
+            <div class="band" id="band-seen">
+              <div class="band-head">
+                <h3 class="band-title">Last observation</h3>
+                <p class="band-note">Time since each device was last seen, from its last seen date.</p>
+              </div>
+              <div class="band-bar" data-band-bar role="img" aria-label="Last observation: no data yet"></div>
+              <ul class="band-legend" aria-label="Filter by last observation">
+                <li><button class="band-item" type="button" data-filter="seen" data-value="day" aria-pressed="false" disabled><span class="band-swatch" aria-hidden="true"></span><span class="band-label">Within 24 hours</span><span class="band-count" data-count>—</span></button></li>
+                <li><button class="band-item" type="button" data-filter="seen" data-value="week" aria-pressed="false" disabled><span class="band-swatch" aria-hidden="true"></span><span class="band-label">1 to 7 days</span><span class="band-count" data-count>—</span></button></li>
+                <li><button class="band-item" type="button" data-filter="seen" data-value="older" aria-pressed="false" disabled><span class="band-swatch" aria-hidden="true"></span><span class="band-label">Over 7 days</span><span class="band-count" data-count>—</span></button></li>
+                <li><button class="band-item" type="button" data-filter="seen" data-value="never" aria-pressed="false" disabled><span class="band-swatch" aria-hidden="true"></span><span class="band-label">Not recorded</span><span class="band-count" data-count>—</span></button></li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel chart-panel composition" aria-labelledby="composition-title">
+          <div class="chart-panel-head">
+            <h2 class="chart-panel-title" id="composition-title">Inventory composition</h2>
+            <p class="section-caption">Devices by type and environment. Select a cell to filter the inventory.</p>
+          </div>
+          <div id="composition-body" aria-busy="true"></div>
+        </section>
+
+        <div class="inventory-grid" id="inventory-grid">
+          <section class="panel inventory" aria-labelledby="inventory-title">
+            <header class="panel-header">
+              <div class="panel-heading">
+                <h2 class="panel-title" id="inventory-title" tabindex="-1">Device inventory</h2>
+                <p class="panel-subtitle" id="inventory-summary">Loading devices…</p>
+              </div>
+              <span class="count-pill" id="inventory-count">—</span>
+            </header>
+
+            <form class="inventory-filters" id="inventory-filters" role="search" aria-label="Filter devices" hidden>
+              <fieldset class="inventory-filters-set" id="inventory-filters-set" disabled>
+                <legend class="visually-hidden">Search, filter and sort devices</legend>
+
+                <div class="filter filter-search">
+                  <label class="filter-label" for="filter-search">Search</label>
+                  <div class="search-field">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-search"></use></svg>
+                    <input class="input" id="filter-search" type="search" autocomplete="off" spellcheck="false" placeholder="Hostname, IP, MAC, vendor, OS or ID" />
+                  </div>
+                </div>
+
+                <div class="filter">
+                  <label class="filter-label" for="filter-status">Status</label>
+                  <select class="select" id="filter-status">
+                    <option value="">All</option>
+                  </select>
+                </div>
+
+                <div class="filter">
+                  <label class="filter-label" for="filter-type">Device type</label>
+                  <select class="select" id="filter-type">
+                    <option value="">All</option>
+                  </select>
+                </div>
+
+                <div class="filter">
+                  <label class="filter-label" for="filter-environment">Environment</label>
+                  <select class="select" id="filter-environment">
+                    <option value="">All</option>
+                  </select>
+                </div>
+
+                <div class="filter">
+                  <label class="filter-label" for="filter-sort">Sort</label>
+                  <select class="select" id="filter-sort">
+                    <option value="recent">Recently seen</option>
+                    <option value="oldest">Oldest seen</option>
+                    <option value="name-asc">Hostname A–Z</option>
+                    <option value="name-desc">Hostname Z–A</option>
+                    <option value="ip">IP address</option>
+                    <option value="status">Status</option>
+                  </select>
+                </div>
+              </fieldset>
+
+              <div class="filters-footer" id="filters-footer" hidden>
+                <button class="text-button" id="filters-clear" type="button">Clear filters</button>
+              </div>
+            </form>
+
+            <div class="inventory-body" id="inventory-body" aria-busy="true"></div>
+
+            <div class="pagination" id="pagination" role="group" aria-label="Device inventory pages" hidden>
+              <p class="pagination-range" id="pagination-range"></p>
+              <div class="pagination-controls">
+                <button class="button pagination-step" id="page-prev" type="button">Previous</button>
+                <ol class="pagination-pages" id="pagination-pages"></ol>
+                <button class="button pagination-step" id="page-next" type="button">Next</button>
+              </div>
+            </div>
+          </section>
+
+          <aside class="panel device-panel" id="device-panel" aria-label="Device details" hidden></aside>
+        </div>
+
+        <dialog class="device-dialog" id="device-dialog" aria-label="Device details">
+          <div class="device-dialog-bar">
+            <p class="device-dialog-title">Device details</p>
+            <button class="icon-button" id="device-dialog-close" type="button" aria-label="Close device details">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-close"></use></svg>
+            </button>
+          </div>
+          <div class="device-dialog-body" id="device-dialog-body"></div>
+        </dialog>
+      </div>
+    </main>
+  </body>
+</html>

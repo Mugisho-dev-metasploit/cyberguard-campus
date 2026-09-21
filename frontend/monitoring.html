@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monitoring | CYBERGUARD CAMPUS</title>
+    <meta name="description" content="CYBERGUARD CAMPUS operational security monitoring." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" href="assets/img/brand/favicon.png" />
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/ibm-plex-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/layout.css" />
+    <link rel="stylesheet" href="assets/css/navigation.css" />
+    <link rel="stylesheet" href="assets/css/components.css" />
+    <link rel="stylesheet" href="assets/css/pages/monitoring.css" />
+    <script type="module" src="assets/js/app.js"></script>
+    <script type="module" src="assets/js/pages/monitoring.js"></script>
+  </head>
+  <body data-page="monitoring">
+    <div id="app-shell"></div>
+
+    <main id="main-content" tabindex="-1">
+      <div class="monitoring-page">
+        <header class="page-header">
+          <div class="page-header-text">
+            <p class="eyebrow">Infrastructure</p>
+            <h1>Monitoring</h1>
+            <p class="page-subtitle">Operational security visibility from the records CYBERGUARD CAMPUS holds</p>
+          </div>
+
+          <div class="page-header-actions">
+            <p class="sync-status" id="sync-status">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-clock"></use></svg>
+              <span id="sync-status-text">Loading…</span>
+            </p>
+            <button class="button" id="monitoring-refresh" type="button">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-refresh"></use></svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </header>
+
+        <p class="visually-hidden" id="monitoring-announcer" role="status" aria-live="polite"></p>
+
+        <!-- Data feeds: the four read endpoints this page uses, and what happened to each request. -->
+        <section class="feeds" aria-labelledby="feeds-title">
+          <div class="feeds-head">
+            <h2 class="feeds-title" id="feeds-title">Data feeds</h2>
+            <p class="feeds-note">Times show when this page loaded each feed, not when the network produced the data.</p>
+          </div>
+          <ul class="feed-list" id="feed-list">
+            <li class="feed" data-feed="metrics" data-state="loading">
+              <span class="feed-name">Metrics</span>
+              <code class="feed-path">/api/metrics</code>
+              <span class="feed-state" data-feed-state>Loading…</span>
+              <span class="feed-detail" data-feed-detail></span>
+            </li>
+            <li class="feed" data-feed="events" data-state="loading">
+              <span class="feed-name">Events</span>
+              <code class="feed-path">/api/events</code>
+              <span class="feed-state" data-feed-state>Loading…</span>
+              <span class="feed-detail" data-feed-detail></span>
+            </li>
+            <li class="feed" data-feed="alerts" data-state="loading">
+              <span class="feed-name">Alerts</span>
+              <code class="feed-path">/api/alerts</code>
+              <span class="feed-state" data-feed-state>Loading…</span>
+              <span class="feed-detail" data-feed-detail></span>
+            </li>
+            <li class="feed" data-feed="devices" data-state="loading">
+              <span class="feed-name">Devices</span>
+              <code class="feed-path">/api/devices</code>
+              <span class="feed-state" data-feed-state>Loading…</span>
+              <span class="feed-detail" data-feed-detail></span>
+            </li>
+          </ul>
+        </section>
+
+        <div class="auth-block" id="auth-block" hidden></div>
+
+        <div class="monitor-sections" id="monitor-sections">
+          <section class="monitor-section" aria-labelledby="totals-title">
+            <div class="section-heading">
+              <h2 class="section-title" id="totals-title">Observation totals</h2>
+              <p class="section-caption">Recorded totals from the metrics feed</p>
+            </div>
+            <div class="panel totals" id="totals-body" aria-busy="true"></div>
+          </section>
+
+          <section class="monitor-section" aria-labelledby="activity-trend-title">
+            <div class="section-heading">
+              <h2 class="section-title" id="activity-trend-title">Security activity, last 24 hours</h2>
+              <p class="section-caption">Records per hour by their own timestamps, from the events and alerts feeds</p>
+            </div>
+            <div class="hourly-grid">
+              <article class="panel chart-panel" aria-labelledby="events-hourly-title">
+                <div class="chart-panel-head">
+                  <h3 class="chart-panel-title" id="events-hourly-title">Events per hour</h3>
+                </div>
+                <div id="events-hourly" aria-busy="true"></div>
+              </article>
+              <article class="panel chart-panel" aria-labelledby="alerts-hourly-title">
+                <div class="chart-panel-head">
+                  <h3 class="chart-panel-title" id="alerts-hourly-title">Alerts per hour</h3>
+                </div>
+                <div id="alerts-hourly" aria-busy="true"></div>
+              </article>
+            </div>
+          </section>
+
+          <div class="monitor-split">
+            <section class="panel chart-panel" aria-labelledby="distribution-title">
+              <div class="chart-panel-head">
+                <h2 class="chart-panel-title" id="distribution-title">Alert distribution</h2>
+                <p class="section-caption">Alerts feed</p>
+              </div>
+              <div id="alert-distribution" aria-busy="true"></div>
+            </section>
+
+            <section class="panel chart-panel" aria-labelledby="observation-title">
+              <div class="chart-panel-head">
+                <h2 class="chart-panel-title" id="observation-title">Device observation</h2>
+                <p class="section-caption">Devices feed</p>
+              </div>
+              <div id="device-observation" aria-busy="true"></div>
+            </section>
+          </div>
+
+          <section class="panel chart-panel" aria-labelledby="sources-title">
+            <div class="chart-panel-head">
+              <h2 class="chart-panel-title" id="sources-title">Signal sources</h2>
+              <p class="section-caption">Where recorded events come from — events feed, device names from the devices feed</p>
+            </div>
+            <div id="signal-sources" aria-busy="true"></div>
+          </section>
+
+          <section class="panel activity" aria-labelledby="recent-title">
+            <header class="panel-header">
+              <div class="panel-heading">
+                <h2 class="panel-title" id="recent-title">Recent security activity</h2>
+                <p class="panel-subtitle" id="activity-summary">Events and alerts, newest first</p>
+              </div>
+              <span class="count-pill" id="activity-count">—</span>
+            </header>
+
+            <form class="activity-toolbar" id="activity-toolbar" role="search" aria-label="Filter recent activity" hidden>
+              <div class="kind-filter" role="group" aria-label="Record type">
+                <button class="kind-option" type="button" data-kind="all" aria-pressed="true">All</button>
+                <button class="kind-option" type="button" data-kind="event" aria-pressed="false">Events</button>
+                <button class="kind-option" type="button" data-kind="alert" aria-pressed="false">Alerts</button>
+              </div>
+              <div class="search-field">
+                <label class="visually-hidden" for="activity-search">Search recent activity</label>
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-search"></use></svg>
+                <input class="input" id="activity-search" type="search" autocomplete="off" spellcheck="false" placeholder="Source, type, title, signature, category or IP" />
+              </div>
+            </form>
+
+            <div class="activity-body" id="activity-body" aria-busy="true"></div>
+
+            <footer class="activity-footer" id="activity-footer" hidden>
+              <p class="activity-range" id="activity-range"></p>
+              <button class="button" id="activity-more" type="button"></button>
+            </footer>
+          </section>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

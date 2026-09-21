@@ -1,0 +1,226 @@
+/*
+ * CYBERGUARD CAMPUS — application layout
+ * Shell grid, topbar, main content container and the shared page header.
+ * Only loaded on pages that mount the shell (#app-shell).
+ */
+
+body:has(> #app-shell) {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "sidebar topbar"
+    "sidebar main";
+}
+
+/* The shell mount is a structural wrapper only: its children join the grid. */
+#app-shell {
+  display: contents;
+}
+
+#main-content {
+  grid-area: main;
+  min-width: 0;
+  padding: 0 var(--gutter) var(--space-12);
+  container-type: inline-size;
+  container-name: content;
+}
+
+/* Focused programmatically by the skip link: no ring around the whole page. */
+#main-content:focus {
+  outline: none;
+}
+
+#main-content > * {
+  max-width: var(--content-max);
+  margin-inline: auto;
+}
+
+/* Topbar ---------------------------------------------------------------- */
+
+.topbar {
+  grid-area: topbar;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--topbar-height);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--border);
+  background: rgba(6, 11, 20, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Brand lockup in the topbar is for drawer mode only (sidebar shows it on desktop). */
+.topbar > .topbar-brand {
+  display: none;
+}
+
+.breadcrumb {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.breadcrumb-list {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.breadcrumb li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.breadcrumb li + li::before {
+  content: "/";
+  color: var(--border-strong);
+}
+
+.breadcrumb [aria-current="page"] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* Page header (shared pattern, page-specific content) ------------------- */
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-8) 0 var(--space-6);
+}
+
+.page-header-text {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.page-header h1 {
+  font-size: var(--text-2xl);
+  letter-spacing: -0.02em;
+}
+
+.page-subtitle {
+  color: var(--text-soft);
+  font-size: var(--text-md);
+}
+
+.page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Mobile & tablet: single column, sidebar becomes a drawer ------------- */
+
+@media (max-width: 919px) {
+  body:has(> #app-shell) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "topbar"
+      "main";
+  }
+
+  .topbar {
+    padding: 0 var(--space-3) 0 var(--space-2);
+  }
+
+  .topbar > .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  .breadcrumb {
+    display: none;
+  }
+
+  .page-header {
+    padding-top: var(--space-6);
+    padding-bottom: var(--space-5);
+  }
+}
+
+@media (max-width: 479px) {
+  .page-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* Campus Signal identity -------------------------------------------------------- */
+
+/* Backdrop: a faint network grid, strongest near the top where the page begins. */
+body:has(> #app-shell)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, rgba(136, 170, 214, 0.1) 1px, transparent 1.6px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(1100px 640px at 28% -8%, #000 18%, transparent 72%);
+  mask-image: radial-gradient(1100px 640px at 28% -8%, #000 18%, transparent 72%);
+}
+
+/* Signal rule under every page header: a node, then a line that fades out
+   (the ring of nodes from the official logo, reduced to one stroke). */
+.page-header {
+  position: relative;
+  margin-bottom: var(--space-6);
+}
+
+.page-header::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-strong), rgba(24, 174, 248, 0.28) 28%, rgba(136, 170, 214, 0.12) 60%, transparent);
+}
+
+.page-header::before {
+  content: "";
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 4px rgba(24, 174, 248, 0.16);
+}
+
+/* One orchestrated moment: page sections rise in once, in reading order. */
+@media (prefers-reduced-motion: no-preference) {
+  #main-content > * > * {
+    animation: signal-rise 480ms var(--ease) both;
+  }
+
+  #main-content > * > :nth-child(2) { animation-delay: 50ms; }
+  #main-content > * > :nth-child(3) { animation-delay: 100ms; }
+  #main-content > * > :nth-child(4) { animation-delay: 150ms; }
+  #main-content > * > :nth-child(5) { animation-delay: 200ms; }
+  #main-content > * > :nth-child(n + 6) { animation-delay: 250ms; }
+}
+
+@keyframes signal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

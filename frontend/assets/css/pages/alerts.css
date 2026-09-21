@@ -1,0 +1,906 @@
+/*
+ * CYBERGUARD CAMPUS — Alerts
+ * Page-specific layout only: lifecycle track, queue filters, queue table
+ * (cards on narrow screens) and the expandable alert detail.
+ * Severity, status, panels, table base, states and controls come from components.css.
+ */
+
+/* `display` rules on buttons, rows and the footer must not override the hidden attribute. */
+.alerts-page [hidden] {
+  display: none !important;
+}
+
+/* Alert lifecycle ----------------------------------------------------------- */
+
+.lifecycle {
+  margin-bottom: var(--space-8);
+}
+
+.lifecycle-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.lifecycle-title {
+  font-size: var(--text-lg);
+}
+
+.lifecycle-hint {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.lifecycle-track {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.lifecycle-stage {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.lifecycle-outcomes {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.stage {
+  --stage: var(--text-muted);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label flag"
+    "count count"
+    "note note";
+  align-content: start;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  color: var(--text);
+  text-align: left;
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    background-color var(--duration-fast) var(--ease);
+}
+
+.stage[data-status="new"] {
+  --stage: var(--accent);
+}
+
+.stage[data-status="acknowledged"] {
+  --stage: var(--neutral-violet);
+}
+
+.stage[data-status="resolved"] {
+  --stage: var(--positive);
+}
+
+/* Stage rail: same signal tick as the Dashboard metrics. */
+.stage::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--space-5);
+  width: 28px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--stage);
+}
+
+.stage .status {
+  grid-area: label;
+  min-width: 0;
+}
+
+.stage-count {
+  grid-area: count;
+  font-family: var(--font-mono);
+  font-size: 1.625rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.stage-note {
+  grid-area: note;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.stage-flag {
+  grid-area: flag;
+  display: none;
+  align-items: center;
+  padding: 1px 6px;
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-xs);
+  color: var(--accent);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+}
+
+.stage:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.stage[aria-pressed="true"],
+.stage[aria-pressed="true"]:hover {
+  border-color: var(--border-accent);
+  background:
+    linear-gradient(180deg, var(--accent-soft), transparent 80%),
+    var(--surface-1);
+}
+
+.stage[aria-pressed="true"] .stage-flag {
+  display: inline-flex;
+}
+
+.stage:disabled {
+  cursor: default;
+}
+
+.stage:disabled .stage-count {
+  color: var(--text-muted);
+}
+
+/* Wide: one row, left to right, with connectors following the lifecycle. */
+@container content (min-width: 720px) {
+  .lifecycle-track {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr);
+    column-gap: var(--space-10);
+  }
+
+  .lifecycle-outcomes {
+    grid-column: auto;
+  }
+
+  .lifecycle-stage:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 8px);
+    width: calc(var(--space-10) - 16px);
+    height: 1px;
+    background: var(--border-strong);
+  }
+
+  .lifecycle-stage:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    top: calc(50% - 3px);
+    left: calc(100% + var(--space-10) - 15px);
+    width: 7px;
+    height: 7px;
+    border-top: 1px solid var(--text-muted);
+    border-right: 1px solid var(--text-muted);
+    transform: rotate(45deg);
+  }
+}
+
+/* Queue filters ---------------------------------------------------------------- */
+
+.queue-filters {
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border);
+  background: rgba(8, 16, 27, 0.5);
+}
+
+.queue-filters-set {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.filter {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.filter-search {
+  grid-column: 1 / -1;
+}
+
+.filter-label {
+  color: var(--text-soft);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.search-field {
+  position: relative;
+}
+
+.search-field .icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.search-field .input {
+  min-height: 40px;
+  padding-right: 40px;
+  padding-left: 36px;
+  font-size: var(--text-sm);
+}
+
+/* Keyboard hint for the "/" shortcut; hidden while typing and on touch screens. */
+.search-key {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.search-field:focus-within .search-key,
+.search-field:has(.input:not(:placeholder-shown)) .search-key {
+  display: none;
+}
+
+@media (hover: none) {
+  .search-key {
+    display: none;
+  }
+}
+
+@container content (max-width: 399px) {
+  .queue-filters-set {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Search + sort on the first row, the five filters below. */
+@container content (min-width: 700px) {
+  .queue-filters-set {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .filter-search {
+    grid-column: span 2;
+  }
+}
+
+@container content (min-width: 1100px) {
+  .queue-filters-set {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .filter-search {
+    grid-column: span 4;
+  }
+}
+
+/* Active filter chips --------------------------------------------------------------- */
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-chips-label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-pill);
+  background: var(--accent-faint);
+  color: var(--text);
+  font-size: var(--text-xs);
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.chip:hover {
+  background: var(--accent-soft);
+}
+
+.chip-key {
+  color: var(--text-muted);
+}
+
+.chip-value {
+  max-width: 24ch;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+}
+
+.chip:hover .chip-icon {
+  color: var(--text);
+}
+
+.chip-clear {
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Empty queue: how alerts reach this page, with real totals ------------------- */
+
+.queue-empty {
+  padding: var(--space-10) var(--space-6) var(--space-12);
+}
+
+.intake {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-6);
+  max-width: 760px;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.intake-head {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+}
+
+.intake-title {
+  font-size: var(--text-lg);
+}
+
+.intake-text {
+  max-width: 58ch;
+  color: var(--text-soft);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.intake-flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+}
+
+/* Dashed link between the nodes: the path exists, nothing is flowing through it yet. */
+.intake-flow::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: calc(100% / 6);
+  left: calc(100% / 6);
+  height: 1px;
+  background: repeating-linear-gradient(90deg, var(--border-strong) 0 6px, transparent 6px 12px);
+}
+
+.intake-step {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Hollow node = nothing recorded at this step yet; filled node = the API reports data. */
+.intake-node {
+  width: 15px;
+  height: 15px;
+  margin-bottom: var(--space-2);
+  border: 1.5px solid var(--text-muted);
+  border-radius: 50%;
+  background: var(--surface-1);
+  box-shadow: 0 0 0 5px var(--surface-1);
+}
+
+.intake-step.is-reached .intake-node {
+  border-color: var(--accent);
+  background: radial-gradient(circle, var(--accent) 0 3px, var(--surface-1) 3.5px);
+}
+
+.intake-count {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.intake-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.intake-note {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.intake-context {
+  max-width: 60ch;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-0);
+  color: var(--text-soft);
+  font-size: var(--text-sm);
+}
+
+.intake-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+@container content (max-width: 559px) {
+  .queue-empty {
+    padding: var(--space-8) var(--space-4) var(--space-10);
+  }
+
+  .intake-flow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+    max-width: 320px;
+    text-align: left;
+  }
+
+  .intake-flow::before {
+    display: none;
+  }
+
+  /* One dashed segment per gap, so the line stops at the last node. */
+  .intake-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 23px;
+    bottom: calc(var(--space-5) * -1 + 4px);
+    left: 7px;
+    width: 1px;
+    background: repeating-linear-gradient(180deg, var(--border-strong) 0 6px, transparent 6px 12px);
+  }
+
+  .intake-step {
+    grid-template-columns: 15px minmax(0, 1fr);
+    justify-items: start;
+    column-gap: var(--space-4);
+  }
+
+  .intake-node {
+    grid-row: 1 / span 3;
+    margin: 4px 0 0;
+  }
+
+  .intake-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+}
+
+/* Queue table (desktop) ---------------------------------------------------------- */
+
+.alerts-table {
+  min-width: 760px;
+}
+
+.alerts-table th:nth-child(1) {
+  width: 136px;
+}
+
+.alerts-table th:nth-child(3) {
+  width: 18%;
+}
+
+.alerts-table th:nth-child(4) {
+  width: 150px;
+}
+
+.alerts-table th:nth-child(5) {
+  width: 136px;
+}
+
+.alerts-table td {
+  vertical-align: top;
+}
+
+.alert-row > td:first-child {
+  box-shadow: inset 2px 0 0 var(--sev);
+}
+
+.alert-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-weight: 500;
+  text-align: left;
+}
+
+.alert-toggle:hover .alert-title {
+  color: var(--accent);
+}
+
+.alert-chevron {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--text-muted);
+  transition: transform var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+
+.alert-toggle[aria-expanded="true"] .alert-chevron {
+  color: var(--accent);
+  transform: rotate(90deg);
+}
+
+.alert-title {
+  overflow-wrap: anywhere;
+  transition: color var(--duration-fast) var(--ease);
+}
+
+.alert-origin {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-3);
+  margin: var(--space-1) 0 0 calc(16px + var(--space-2));
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.alert-source {
+  color: var(--text-soft);
+  font-family: var(--font-mono);
+}
+
+.cell-category {
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.cell-detected {
+  color: var(--text-soft);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.alerts-table .is-missing {
+  color: var(--text-muted);
+}
+
+.alert-row.is-expanded > td {
+  background: var(--accent-faint);
+}
+
+/* Expanded detail ------------------------------------------------------------------ */
+
+.alerts-table .alert-detail-row > td,
+.alerts-table .alert-detail-row:hover > td {
+  padding: 0;
+  background: var(--surface-0);
+}
+
+.alert-detail {
+  display: grid;
+  gap: var(--space-5) var(--space-8);
+  padding: var(--space-5) var(--space-6) var(--space-6) calc(var(--space-4) + 24px);
+}
+
+@container content (min-width: 760px) {
+  .alert-detail {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  }
+}
+
+.detail-column {
+  display: grid;
+  align-content: start;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.detail-block {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.detail-title {
+  color: var(--text-soft);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.detail-text {
+  max-width: 70ch;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.detail-code {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-soft);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.alert-detail .is-missing {
+  color: var(--text-muted);
+}
+
+/* Lifecycle timeline: filled marker = timestamp recorded, hollow = not yet. */
+.timeline {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.timeline-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.timeline-step::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: 50%;
+}
+
+.timeline-step.is-reached::before {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.timeline-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 19px;
+  bottom: calc(var(--space-3) * -1 + 4px);
+  left: 4px;
+  width: 1px;
+  background: var(--border-strong);
+}
+
+.timeline-label {
+  color: var(--text-muted);
+}
+
+.timeline-step time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.8;
+}
+
+.identifiers {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.identifiers dt {
+  color: var(--text-muted);
+}
+
+.identifiers dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.identifiers dd.mono {
+  font-size: var(--text-xs);
+  line-height: 1.8;
+}
+
+/* Loading rows --------------------------------------------------------------------- */
+
+.skeleton-tag {
+  width: 88px;
+  height: 22px;
+}
+
+.skeleton-title {
+  width: 70%;
+  height: 12px;
+  margin-bottom: var(--space-2);
+}
+
+.skeleton-line {
+  width: 60%;
+  height: 10px;
+}
+
+/* Queue footer ------------------------------------------------------------------------ */
+
+.queue-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border);
+}
+
+.queue-range {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Narrow: each alert becomes a card (roles set in markup keep table semantics) --- */
+
+@container content (max-width: 759px) {
+  .queue-filters,
+  .filter-chips,
+  .queue-footer {
+    padding-inline: var(--space-4);
+  }
+
+  .alerts-table {
+    min-width: 0;
+  }
+
+  .alerts-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .alerts-table tbody,
+  .alerts-table tr,
+  .alerts-table td {
+    display: block;
+  }
+
+  .alerts-table .alert-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "severity status"
+      "alert alert"
+      "category detected";
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--border);
+    box-shadow: inset 2px 0 0 var(--sev);
+  }
+
+  .alerts-table .alert-row > td {
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: none;
+  }
+
+  .alerts-table .alert-row.is-expanded {
+    background: var(--accent-faint);
+  }
+
+  .alerts-table .cell-severity {
+    grid-area: severity;
+  }
+
+  .alerts-table .cell-status {
+    grid-area: status;
+    justify-self: end;
+  }
+
+  .alerts-table .cell-alert {
+    grid-area: alert;
+  }
+
+  .alerts-table .cell-category {
+    grid-area: category;
+    font-size: var(--text-xs);
+  }
+
+  .alerts-table .cell-detected {
+    grid-area: detected;
+    justify-self: end;
+  }
+
+  .alerts-table .alert-detail-row > td {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .alert-detail {
+    padding: var(--space-4) var(--space-4) var(--space-5) var(--space-5);
+  }
+
+  .timeline-step {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+}
+
+/* Detection rhythm chart, between the lifecycle and the queue. */
+.rhythm {
+  margin-bottom: var(--space-6);
+}

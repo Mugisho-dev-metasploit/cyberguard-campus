@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Security Overview | CYBERGUARD CAMPUS</title>
+    <meta name="description" content="CYBERGUARD CAMPUS security operations dashboard." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" href="assets/img/brand/favicon.png" />
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/ibm-plex-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/layout.css" />
+    <link rel="stylesheet" href="assets/css/navigation.css" />
+    <link rel="stylesheet" href="assets/css/components.css" />
+    <link rel="stylesheet" href="assets/css/pages/dashboard.css" />
+    <script type="module" src="assets/js/app.js"></script>
+    <script type="module" src="assets/js/pages/dashboard.js"></script>
+  </head>
+  <body data-page="dashboard">
+    <div id="app-shell"></div>
+
+    <main id="main-content" tabindex="-1">
+      <div class="dashboard">
+        <header class="page-header">
+          <div class="page-header-text">
+            <p class="eyebrow">Security Operations</p>
+            <h1>Security Overview</h1>
+            <p class="page-subtitle">Campus security activity at a glance</p>
+          </div>
+
+          <div class="page-header-actions">
+            <p class="sync-status" id="sync-status">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-clock"></use></svg>
+              <span id="sync-status-text">Loading…</span>
+            </p>
+            <button class="button" id="dashboard-refresh" type="button">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-refresh"></use></svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </header>
+
+        <p class="visually-hidden" id="dashboard-announcer" role="status" aria-live="polite"></p>
+
+        <section class="dashboard-section" aria-labelledby="metrics-title">
+          <div class="section-heading">
+            <h2 class="section-title" id="metrics-title">Key Security Metrics</h2>
+            <p class="section-caption">Totals currently recorded by CYBERGUARD CAMPUS</p>
+          </div>
+
+          <div class="metrics-error" id="metrics-error"></div>
+
+          <ul class="kpi-grid" id="kpi-grid" aria-busy="true">
+            <li class="kpi-card" data-kpi="total_events">
+              <div class="kpi-head">
+                <span class="kpi-icon"><svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-events"></use></svg></span>
+                <p class="kpi-label">Total Events</p>
+              </div>
+              <div>
+                <p class="kpi-value" data-kpi-value></p>
+                <p class="kpi-context">Security events recorded</p>
+              </div>
+            </li>
+
+            <li class="kpi-card" data-kpi="total_alerts">
+              <div class="kpi-head">
+                <span class="kpi-icon"><svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-alerts"></use></svg></span>
+                <p class="kpi-label">Total Alerts</p>
+              </div>
+              <div>
+                <p class="kpi-value" data-kpi-value></p>
+                <p class="kpi-context">Alerts raised from events</p>
+              </div>
+            </li>
+
+            <li class="kpi-card" data-kpi="critical_alerts">
+              <div class="kpi-head">
+                <span class="kpi-icon"><svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-critical"></use></svg></span>
+                <p class="kpi-label">Critical Alerts</p>
+              </div>
+              <div>
+                <p class="kpi-value" data-kpi-value></p>
+                <p class="kpi-context">Severity 4 alerts</p>
+              </div>
+            </li>
+
+            <li class="kpi-card" data-kpi="open_incidents">
+              <div class="kpi-head">
+                <span class="kpi-icon"><svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-incidents"></use></svg></span>
+                <p class="kpi-label">Open Incidents</p>
+              </div>
+              <div>
+                <p class="kpi-value" data-kpi-value></p>
+                <p class="kpi-context">Not yet resolved or closed</p>
+              </div>
+            </li>
+
+            <li class="kpi-card" data-kpi="devices">
+              <div class="kpi-head">
+                <span class="kpi-icon"><svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-devices"></use></svg></span>
+                <p class="kpi-label">Devices</p>
+              </div>
+              <div>
+                <p class="kpi-value" data-kpi-value></p>
+                <p class="kpi-context">Registered in inventory</p>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section class="dashboard-section" aria-labelledby="trend-title">
+          <div class="section-heading">
+            <h2 class="section-title" id="trend-title">Alert Activity</h2>
+            <p class="section-caption">Alerts detected per day over the last 14 days</p>
+          </div>
+
+          <div class="panel chart-panel" id="alert-trend" aria-busy="true"></div>
+        </section>
+
+        <section class="dashboard-section" aria-labelledby="activity-title">
+          <div class="section-heading">
+            <h2 class="section-title" id="activity-title">Recent Security Activity</h2>
+            <p class="section-caption">Alerts returned by the API, newest first</p>
+          </div>
+
+          <div class="activity-grid">
+            <article class="panel alerts-panel" aria-labelledby="alerts-title">
+              <header class="panel-header">
+                <div class="panel-heading">
+                  <h3 class="panel-title" id="alerts-title">Recent Alerts</h3>
+                  <p class="panel-subtitle">The 10 most recent alerts</p>
+                </div>
+                <span class="count-pill" id="alerts-count">—</span>
+              </header>
+              <div class="panel-body" id="alerts-body" aria-busy="true"></div>
+            </article>
+
+            <article class="panel breakdown-panel" aria-labelledby="breakdown-title">
+              <header class="panel-header">
+                <div class="panel-heading">
+                  <h3 class="panel-title" id="breakdown-title">Alert Breakdown</h3>
+                  <p class="panel-subtitle">By severity and status</p>
+                </div>
+              </header>
+              <div class="panel-body" id="breakdown-body" aria-busy="true"></div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

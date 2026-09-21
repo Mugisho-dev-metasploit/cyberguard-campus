@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign in | CYBERGUARD CAMPUS</title>
+    <meta name="description" content="Sign in to CYBERGUARD CAMPUS, the campus security operations platform." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" href="assets/img/brand/favicon.png" />
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/components.css" />
+    <link rel="stylesheet" href="assets/css/pages/login.css" />
+    <script type="module" src="assets/js/pages/login.js"></script>
+  </head>
+  <body data-page="login">
+    <main class="login-page" aria-labelledby="login-title">
+      <section class="login-shell">
+        <div class="login-visual">
+          <div class="brand login-brand">
+            <img class="brand-emblem" src="assets/img/brand/cyberguard-campus-emblem.png" alt="" width="56" height="56" />
+            <span class="brand-text">
+              <span class="brand-name">CYBERGUARD</span>
+              <span class="brand-product">CAMPUS</span>
+            </span>
+          </div>
+
+          <div class="login-signal" aria-hidden="true">
+            <span class="signal-ring signal-ring-outer"></span>
+            <span class="signal-ring signal-ring-inner"></span>
+            <span class="signal-orbit">
+              <span class="signal-node"></span>
+              <span class="signal-node"></span>
+              <span class="signal-node"></span>
+            </span>
+            <img class="signal-emblem" src="assets/img/brand/cyberguard-campus-emblem.png" alt="" width="120" height="120" />
+          </div>
+
+          <div class="login-intro">
+            <p class="eyebrow">Security Operations</p>
+            <p class="login-product">CYBERGUARD CAMPUS</p>
+            <p class="login-copy">
+              Monitor campus security activity, review alerts and manage incidents from one place.
+            </p>
+          </div>
+        </div>
+
+        <div class="login-panel">
+          <div class="login-panel-header">
+            <h1 id="login-title">Sign in</h1>
+            <p class="login-panel-copy">Use your CYBERGUARD CAMPUS account.</p>
+          </div>
+
+          <div class="login-feedback" id="login-feedback" role="alert" hidden></div>
+
+          <form id="login-form" class="login-form" novalidate>
+            <div class="field">
+              <label class="field-label" for="identifier">Identifier</label>
+              <input
+                class="input"
+                id="identifier"
+                name="identifier"
+                type="text"
+                autocomplete="username"
+                autocapitalize="none"
+                spellcheck="false"
+                aria-describedby="identifier-hint"
+                required
+                autofocus
+              />
+              <p class="field-hint" id="identifier-hint">Username or email address</p>
+              <p class="field-error" id="identifier-error" hidden></p>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="password">Password</label>
+              <div class="password-field">
+                <input
+                  class="input"
+                  id="password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  spellcheck="false"
+                  required
+                />
+                <button
+                  class="password-toggle"
+                  id="password-toggle"
+                  type="button"
+                  aria-controls="password"
+                  aria-pressed="false"
+                  aria-label="Show password"
+                >
+                  <span class="password-toggle-text" aria-hidden="true">Show</span>
+                </button>
+              </div>
+              <p class="field-hint caps-hint" id="caps-hint" hidden>Caps Lock is on.</p>
+              <p class="field-error" id="password-error" hidden></p>
+            </div>
+
+            <button id="login-submit" type="submit" class="button button-primary login-submit">
+              <span class="login-spinner" aria-hidden="true"></span>
+              <span class="login-submit-text">Sign in</span>
+            </button>
+
+            <p class="visually-hidden" id="login-progress" role="status" aria-live="polite"></p>
+          </form>
+
+          <p class="login-help">
+            Contact your security administrator if you cannot sign in.
+          </p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

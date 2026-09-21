@@ -1,0 +1,36 @@
+/*
+ * CYBERGUARD CAMPUS — Events
+ * Page-specific table sizing only. Table, panel, severity and state
+ * styles come from components.css.
+ */
+
+.events-table {
+  min-width: 1040px;
+}
+
+.events-table .cell-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.events-table .cell-nowrap {
+  white-space: nowrap;
+}
+
+.events-table .cell-signature {
+  min-width: 220px;
+  max-width: 360px;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.events-skeleton {
+  width: 70%;
+  height: 10px;
+}
+
+/* Event volume chart above the trail. */
+.events-volume {
+  margin-bottom: var(--space-6);
+}

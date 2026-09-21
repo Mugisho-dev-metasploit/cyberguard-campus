@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Incidents | CYBERGUARD CAMPUS</title>
+    <meta name="description" content="CYBERGUARD CAMPUS incident command center." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" href="assets/img/brand/favicon.png" />
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/ibm-plex-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/layout.css" />
+    <link rel="stylesheet" href="assets/css/navigation.css" />
+    <link rel="stylesheet" href="assets/css/components.css" />
+    <link rel="stylesheet" href="assets/css/pages/incidents.css" />
+    <script type="module" src="assets/js/app.js"></script>
+    <script type="module" src="assets/js/pages/incidents.js"></script>
+  </head>
+  <body data-page="incidents">
+    <div id="app-shell"></div>
+
+    <main id="main-content" tabindex="-1">
+      <div class="incidents-page">
+        <header class="page-header">
+          <div class="page-header-text">
+            <p class="eyebrow">Security Operations</p>
+            <h1>Incident Command Center</h1>
+            <p class="page-subtitle">Track every security incident from detection to closure</p>
+          </div>
+
+          <div class="page-header-actions">
+            <p class="sync-status" id="sync-status">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-clock"></use></svg>
+              <span id="sync-status-text">Loading…</span>
+            </p>
+            <button class="button" id="incidents-refresh" type="button">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-refresh"></use></svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </header>
+
+        <p class="visually-hidden" id="incidents-announcer" role="status" aria-live="polite"></p>
+
+        <!-- Response pipeline: the six incident statuses of the backend, in response order. -->
+        <section class="pipeline" aria-labelledby="pipeline-title">
+          <div class="pipeline-heading">
+            <div class="pipeline-intro">
+              <h2 class="pipeline-title" id="pipeline-title">Response pipeline</h2>
+              <p class="pipeline-hint" id="pipeline-hint">Select a stage to show only its incidents.</p>
+            </div>
+
+            <dl class="watch-list">
+              <div class="watch">
+                <dt>Total</dt>
+                <dd data-watch="total">—</dd>
+              </div>
+              <div class="watch">
+                <dt>Critical, still active</dt>
+                <dd data-watch="critical">—</dd>
+              </div>
+              <div class="watch">
+                <dt>Unassigned, still active</dt>
+                <dd data-watch="unassigned">—</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="pipeline-rail">
+            <div class="pipeline-group pipeline-group-active">
+              <p class="pipeline-group-label" id="group-active">Active response</p>
+              <ol class="pipeline-stages" aria-labelledby="group-active">
+                <li>
+                  <button class="pipeline-stage" type="button" data-status="open" aria-pressed="false" aria-describedby="pipeline-hint" disabled>
+                    <span class="status" data-status="open">Open</span>
+                    <span class="pipeline-count" data-stage-count>—</span>
+                    <span class="pipeline-flag" aria-hidden="true">Filtered</span>
+                  </button>
+                </li>
+                <li>
+                  <button class="pipeline-stage" type="button" data-status="acknowledged" aria-pressed="false" aria-describedby="pipeline-hint" disabled>
+                    <span class="status" data-status="acknowledged">Acknowledged</span>
+                    <span class="pipeline-count" data-stage-count>—</span>
+                    <span class="pipeline-flag" aria-hidden="true">Filtered</span>
+                  </button>
+                </li>
+                <li>
+                  <button class="pipeline-stage" type="button" data-status="investigating" aria-pressed="false" aria-describedby="pipeline-hint" disabled>
+                    <span class="status" data-status="investigating">Investigating</span>
+                    <span class="pipeline-count" data-stage-count>—</span>
+                    <span class="pipeline-flag" aria-hidden="true">Filtered</span>
+                  </button>
+                </li>
+                <li>
+                  <button class="pipeline-stage" type="button" data-status="contained" aria-pressed="false" aria-describedby="pipeline-hint" disabled>
+                    <span class="status" data-status="contained">Contained</span>
+                    <span class="pipeline-count" data-stage-count>—</span>
+                    <span class="pipeline-flag" aria-hidden="true">Filtered</span>
+                  </button>
+                </li>
+              </ol>
+            </div>
+
+            <div class="pipeline-group pipeline-group-closed">
+              <p class="pipeline-group-label" id="group-closed">Closed out</p>
+              <ol class="pipeline-stages" aria-labelledby="group-closed">
+                <li>
+                  <button class="pipeline-stage" type="button" data-status="resolved" aria-pressed="false" aria-describedby="pipeline-hint" disabled>
+                    <span class="status" data-status="resolved">Resolved</span>
+                    <span class="pipeline-count" data-stage-count>—</span>
+                    <span class="pipeline-flag" aria-hidden="true">Filtered</span>
+                  </button>
+                </li>
+                <li>
+                  <button class="pipeline-stage" type="button" data-status="closed" aria-pressed="false" aria-describedby="pipeline-hint" disabled>
+                    <span class="status" data-status="closed">Closed</span>
+                    <span class="pipeline-count" data-stage-count>—</span>
+                    <span class="pipeline-flag" aria-hidden="true">Filtered</span>
+                  </button>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel chart-panel incident-age" aria-labelledby="age-title">
+          <div class="chart-panel-head">
+            <h2 class="chart-panel-title" id="age-title">Active incident age</h2>
+            <p class="section-caption">Time since detection for incidents not yet resolved or closed</p>
+          </div>
+          <div class="age-layout">
+            <div id="age-body" aria-busy="true"></div>
+            <div class="longest-open">
+              <h3 class="longest-open-title">Longest open</h3>
+              <ol class="longest-open-list" id="longest-open"></ol>
+            </div>
+          </div>
+        </section>
+
+        <div class="command-grid" id="command-grid">
+          <section class="panel incident-queue" aria-labelledby="queue-title">
+            <header class="panel-header">
+              <div class="panel-heading">
+                <h2 class="panel-title" id="queue-title">Incident queue</h2>
+                <p class="panel-subtitle" id="queue-summary">Loading incidents…</p>
+              </div>
+              <span class="count-pill" id="queue-count">—</span>
+            </header>
+
+            <form class="queue-filters" id="queue-filters" role="search" aria-label="Filter incidents" hidden>
+              <fieldset class="queue-filters-set" id="queue-filters-set" disabled>
+                <legend class="visually-hidden">Filter and sort incidents</legend>
+
+                <div class="filter filter-search">
+                  <label class="filter-label" for="filter-search">Search</label>
+                  <div class="search-field">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-search"></use></svg>
+                    <input class="input" id="filter-search" type="search" autocomplete="off" spellcheck="false" placeholder="Number, title, description or ID" />
+                  </div>
+                </div>
+
+                <div class="filter">
+                  <label class="filter-label" for="filter-sort">Sort</label>
+                  <select class="select" id="filter-sort">
+                    <option value="newest">Newest detected</option>
+                    <option value="oldest">Oldest detected</option>
+                    <option value="severity">Highest severity</option>
+                    <option value="priority">Highest priority</option>
+                    <option value="updated">Recently updated</option>
+                  </select>
+                </div>
+
+                <div class="filter">
+                  <label class="filter-label" for="filter-status">Status</label>
+                  <select class="select" id="filter-status">
+                    <option value="">All</option>
+                  </select>
+                </div>
+
+                <div class="filter">
+                  <label class="filter-label" for="filter-severity">Severity</label>
+                  <select class="select" id="filter-severity">
+                    <option value="">All</option>
+                  </select>
+                </div>
+
+                <div class="filter">
+                  <label class="filter-label" for="filter-priority">Priority</label>
+                  <select class="select" id="filter-priority">
+                    <option value="">All</option>
+                  </select>
+                </div>
+
+                <div class="filter">
+                  <label class="filter-label" for="filter-owner">Assignment</label>
+                  <select class="select" id="filter-owner">
+                    <option value="">All</option>
+                  </select>
+                </div>
+              </fieldset>
+
+              <div class="filters-footer" id="filters-footer" hidden>
+                <button class="text-button" id="filters-clear" type="button">Clear filters</button>
+              </div>
+            </form>
+
+            <div class="queue-body" id="queue-body" aria-busy="true"></div>
+
+            <footer class="queue-footer" id="queue-footer" hidden>
+              <p class="queue-range" id="queue-range"></p>
+              <button class="button" id="queue-more" type="button"></button>
+            </footer>
+          </section>
+
+          <aside class="panel case-file" id="case-file" aria-label="Case file" hidden></aside>
+        </div>
+
+        <dialog class="case-dialog" id="case-dialog" aria-label="Case file">
+          <div class="case-dialog-bar">
+            <p class="case-dialog-title">Case file</p>
+            <button class="case-dialog-close" id="case-dialog-close" type="button" aria-label="Close case file">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-close"></use></svg>
+            </button>
+          </div>
+          <div class="case-dialog-body" id="case-dialog-body"></div>
+        </dialog>
+      </div>
+    </main>
+  </body>
+</html>

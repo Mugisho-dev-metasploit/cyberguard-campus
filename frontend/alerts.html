@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alerts | CYBERGUARD CAMPUS</title>
+    <meta name="description" content="CYBERGUARD CAMPUS security alert queue." />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" href="assets/img/brand/favicon.png" />
+    <link rel="preload" href="assets/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/ibm-plex-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/layout.css" />
+    <link rel="stylesheet" href="assets/css/navigation.css" />
+    <link rel="stylesheet" href="assets/css/components.css" />
+    <link rel="stylesheet" href="assets/css/pages/alerts.css" />
+    <script type="module" src="assets/js/app.js"></script>
+    <script type="module" src="assets/js/pages/alerts.js"></script>
+  </head>
+  <body data-page="alerts">
+    <div id="app-shell"></div>
+
+    <main id="main-content" tabindex="-1">
+      <div class="alerts-page">
+        <header class="page-header">
+          <div class="page-header-text">
+            <p class="eyebrow">Security Operations</p>
+            <h1>Alerts</h1>
+            <p class="page-subtitle">Review and filter the security alerts raised across the campus</p>
+          </div>
+
+          <div class="page-header-actions">
+            <p class="sync-status" id="sync-status">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-clock"></use></svg>
+              <span id="sync-status-text">Loading…</span>
+            </p>
+            <button class="button" id="alerts-refresh" type="button">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-refresh"></use></svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </header>
+
+        <p class="visually-hidden" id="alerts-announcer" role="status" aria-live="polite"></p>
+
+        <!-- Alert lifecycle: the real status sequence of the backend (new → acknowledged → resolved | false positive). -->
+        <section class="lifecycle" aria-labelledby="lifecycle-title">
+          <div class="lifecycle-heading">
+            <h2 class="lifecycle-title" id="lifecycle-title">Alert lifecycle</h2>
+            <p class="lifecycle-hint" id="lifecycle-hint">Select a stage to show only its alerts.</p>
+          </div>
+
+          <ol class="lifecycle-track">
+            <li class="lifecycle-stage">
+              <button class="stage" type="button" data-status="new" aria-pressed="false" aria-describedby="lifecycle-hint" disabled>
+                <span class="status" data-status="new">New</span>
+                <span class="stage-count" data-stage-count>—</span>
+                <span class="stage-note">Awaiting acknowledgement</span>
+                <span class="stage-flag" aria-hidden="true">Filtered</span>
+              </button>
+            </li>
+            <li class="lifecycle-stage">
+              <button class="stage" type="button" data-status="acknowledged" aria-pressed="false" aria-describedby="lifecycle-hint" disabled>
+                <span class="status" data-status="acknowledged">Acknowledged</span>
+                <span class="stage-count" data-stage-count>—</span>
+                <span class="stage-note">Seen, not yet closed</span>
+                <span class="stage-flag" aria-hidden="true">Filtered</span>
+              </button>
+            </li>
+            <li class="lifecycle-stage lifecycle-outcomes">
+              <button class="stage" type="button" data-status="resolved" aria-pressed="false" aria-describedby="lifecycle-hint" disabled>
+                <span class="status" data-status="resolved">Resolved</span>
+                <span class="stage-count" data-stage-count>—</span>
+                <span class="stage-note">Closed as handled</span>
+                <span class="stage-flag" aria-hidden="true">Filtered</span>
+              </button>
+              <button class="stage" type="button" data-status="false_positive" aria-pressed="false" aria-describedby="lifecycle-hint" disabled>
+                <span class="status" data-status="false_positive">False positive</span>
+                <span class="stage-count" data-stage-count>—</span>
+                <span class="stage-note">Closed as not a threat</span>
+                <span class="stage-flag" aria-hidden="true">Filtered</span>
+              </button>
+            </li>
+          </ol>
+        </section>
+
+        <section class="panel chart-panel rhythm" aria-labelledby="rhythm-title">
+          <div class="chart-panel-head">
+            <h2 class="chart-panel-title" id="rhythm-title">Detection rhythm</h2>
+            <p class="section-caption">When the alerts in the current view were detected, by weekday and hour (local time)</p>
+          </div>
+          <div id="rhythm-body" aria-busy="true"></div>
+        </section>
+
+        <section class="panel alert-queue" aria-labelledby="queue-title">
+          <header class="panel-header">
+            <div class="panel-heading">
+              <h2 class="panel-title" id="queue-title">Alert queue</h2>
+              <p class="panel-subtitle" id="queue-summary">Loading alerts…</p>
+            </div>
+            <span class="count-pill" id="queue-count">—</span>
+          </header>
+
+          <form class="queue-filters" id="queue-filters" role="search" aria-label="Filter alerts" hidden>
+            <fieldset class="queue-filters-set" id="queue-filters-set" disabled>
+              <legend class="visually-hidden">Filter and sort alerts</legend>
+
+              <div class="filter filter-search">
+                <label class="filter-label" for="filter-search">Search</label>
+                <div class="search-field">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="assets/img/icons.svg#i-search"></use></svg>
+                  <input class="input" id="filter-search" type="search" autocomplete="off" spellcheck="false" placeholder="Title, source, type, signature or alert ID" aria-keyshortcuts="/" />
+                  <kbd class="search-key" aria-hidden="true" title="Press / to search">/</kbd>
+                </div>
+              </div>
+
+              <div class="filter filter-sort">
+                <label class="filter-label" for="filter-sort">Sort</label>
+                <select class="select" id="filter-sort">
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="severity">Highest severity first</option>
+                </select>
+              </div>
+
+              <div class="filter">
+                <label class="filter-label" for="filter-severity">Severity</label>
+                <select class="select" id="filter-severity">
+                  <option value="">All</option>
+                </select>
+              </div>
+
+              <div class="filter">
+                <label class="filter-label" for="filter-status">Status</label>
+                <select class="select" id="filter-status">
+                  <option value="">All</option>
+                </select>
+              </div>
+
+              <div class="filter">
+                <label class="filter-label" for="filter-range">Detected</label>
+                <select class="select" id="filter-range">
+                  <option value="">All time</option>
+                </select>
+              </div>
+
+              <div class="filter">
+                <label class="filter-label" for="filter-category">Category</label>
+                <select class="select" id="filter-category">
+                  <option value="">All</option>
+                </select>
+              </div>
+
+              <div class="filter">
+                <label class="filter-label" for="filter-source">Source</label>
+                <select class="select" id="filter-source">
+                  <option value="">All</option>
+                </select>
+              </div>
+            </fieldset>
+          </form>
+
+          <div class="filter-chips" id="filter-chips" hidden>
+            <p class="filter-chips-label" id="filter-chips-label">Filtered by</p>
+            <ul class="chip-list" id="chip-list" aria-labelledby="filter-chips-label"></ul>
+            <button class="chip-clear" id="filters-clear" type="button">Clear all</button>
+          </div>
+
+          <div class="table-scroll" id="queue-table">
+            <table class="table alerts-table" role="table" aria-labelledby="queue-title" aria-describedby="queue-summary">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">Severity</th>
+                  <th scope="col" role="columnheader">Alert</th>
+                  <th scope="col" role="columnheader">Category</th>
+                  <th scope="col" role="columnheader">Status</th>
+                  <th scope="col" role="columnheader">Detected</th>
+                </tr>
+              </thead>
+              <tbody id="queue-body" role="rowgroup" aria-busy="true"></tbody>
+            </table>
+          </div>
+
+          <div class="queue-empty" id="queue-empty" hidden></div>
+
+          <footer class="queue-footer" id="queue-footer" hidden>
+            <p class="queue-range" id="queue-range"></p>
+            <button class="button" id="queue-more" type="button"></button>
+          </footer>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
