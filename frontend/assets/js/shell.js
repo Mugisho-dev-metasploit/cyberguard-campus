@@ -112,6 +112,11 @@ function createSidebar(activeId) {
     el('div', { className: 'sidebar-footer' }, [
       el('strong', { text: 'CYBERGUARD CAMPUS' }),
       el('span', { text: 'Security operations console' }),
+      el('button', { className: 'button sidebar-signout', attrs: { type: 'button' } }, [
+        icon('lock'),
+        el('span', { text: 'Sign out' }),
+      ]),
+      el('p', { className: 'sidebar-signout-status', attrs: { role: 'status' } }),
     ]),
   ]);
 }

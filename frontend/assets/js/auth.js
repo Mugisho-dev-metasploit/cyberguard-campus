@@ -5,7 +5,7 @@
  * The backend is the only authority: a 401 from a protected endpoint ends the visit.
  */
 
-import { ApiError, onUnauthorized, postLogin } from './api.js';
+import { ApiError, onUnauthorized, postLogin, postLogout } from './api.js';
 
 export const WELCOME_PAGE = 'welcome.html';
 export const LOGIN_PAGE = 'login.html';
@@ -53,4 +53,19 @@ export async function signIn(identifier, password) {
   }
 
   return payload.user;
+}
+
+/**
+ * Signs out through POST /logout. Only once the backend has confirmed does the visit end, the
+ * same way as any ended session (public entry, replace()). Nothing is stored in the browser, so
+ * there is nothing to clear here. Throws ApiError when the sign-out was not confirmed.
+ */
+export async function signOut() {
+  const payload = await postLogout();
+
+  if (payload.success !== true) {
+    throw new ApiError('Unexpected sign-out response.', { status: 200, kind: 'invalid-response' });
+  }
+
+  endSession();
 }

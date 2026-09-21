@@ -202,3 +202,11 @@ export async function updateIncident(id, fields) {
 export function postLogin(identifier, password) {
   return request('POST', '/login', { identifier, password });
 }
+
+/**
+ * POST /logout — ends the session named by the HttpOnly session cookie (sent by the browser).
+ * No body: nothing about the user or the session is sent. → { success, message }.
+ */
+export function postLogout() {
+  return request('POST', '/logout');
+}

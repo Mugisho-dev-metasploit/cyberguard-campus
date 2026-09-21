@@ -154,6 +154,16 @@ a.nav-item:hover .icon {
   font-weight: 500;
 }
 
+.sidebar-signout {
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.sidebar-signout-status:not(:empty) {
+  margin-top: var(--space-2);
+  color: var(--danger);
+}
+
 /* Icon buttons (menu toggle, drawer close) ------------------------------ */
 
 .menu-toggle,
