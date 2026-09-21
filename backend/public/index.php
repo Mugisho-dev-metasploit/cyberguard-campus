@@ -114,7 +114,8 @@ $metricsController = new MetricsController(
 );
 
 $authenticationMiddleware = new AuthenticationMiddleware(
-    $sessionManager
+    sessionManager: $sessionManager,
+    authenticationService: $authenticationService,
 );
 
 $authorizationMiddleware = new AuthorizationMiddleware(

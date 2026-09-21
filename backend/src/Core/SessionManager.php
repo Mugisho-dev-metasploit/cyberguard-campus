@@ -55,7 +55,7 @@ final class SessionManager
         $isProduction = ($_ENV['APP_ENV'] ?? 'development') === 'production';
 
         session_name(
-            $_ENV['SESSION_NAME'] ?? 'cyberguard_session'
+            $this->sessionName()
         );
 
         // The browser cookie ends with the session. PHP only sends it when a session ID is
@@ -104,6 +104,11 @@ final class SessionManager
         }
     }
 
+    private function sessionName(): string
+    {
+        return $_ENV['SESSION_NAME'] ?? 'cyberguard_session';
+    }
+
     /**
      * Opens the session sent by the browser, if any. Never writes the session start time:
      * only authenticate() does, so later requests cannot extend the session.
@@ -141,6 +146,11 @@ final class SessionManager
 
     public function isAuthenticated(): bool
     {
+        // No session cookie: nothing to check, and no session is created for the request.
+        if (!isset($_COOKIE[$this->sessionName()])) {
+            return false;
+        }
+
         $this->start();
 
         if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -151,6 +161,10 @@ final class SessionManager
             !isset($_SESSION[self::SESSION_AUTHENTICATED])
             || $_SESSION[self::SESSION_AUTHENTICATED] !== true
         ) {
+            // Unknown, stale or unauthenticated ID (strict mode gave it a new, empty session):
+            // nothing worth keeping, so no session is left behind and the cookie is cleared.
+            $this->destroy();
+
             return false;
         }
 
@@ -199,6 +213,17 @@ final class SessionManager
         $role = $_SESSION[self::SESSION_ROLE] ?? null;
 
         return is_string($role) ? $role : null;
+    }
+
+    /**
+     * Replaces the role recorded at sign-in with the account's current role, read from the
+     * database for this request (APP-07.3.1). The session start time is not touched.
+     */
+    public function refreshRole(string $role): void
+    {
+        if ($this->isAuthenticated()) {
+            $_SESSION[self::SESSION_ROLE] = $role;
+        }
     }
 
     /**

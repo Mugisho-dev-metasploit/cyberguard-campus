@@ -102,9 +102,10 @@ function request(string $method, string $path, ?string $sessionCookie, array $bo
     session_id($sessionCookie ?? '');
 
     $sessionManager = new SessionManager($clock);
-    $authentication = new AuthenticationMiddleware($sessionManager);
+    $authenticationService = new AuthenticationService(new UserRepository($pdo));
+    $authentication = new AuthenticationMiddleware($sessionManager, $authenticationService);
     $authorization = new AuthorizationMiddleware($sessionManager);
-    $login = new LoginController(new AuthenticationService(new UserRepository($pdo)), $sessionManager);
+    $login = new LoginController($authenticationService, $sessionManager);
 
     $protected = static fn (array $roles): array => [
         [$authentication, 'handle'],
@@ -198,7 +199,8 @@ check('lifetime constant is 21600 seconds', SessionManager::SESSION_LIFETIME_SEC
 
 $anonymous = request('GET', '/api/events', null);
 check('no session → 401 (existing contract)', $anonymous['status'] === 401 && $anonymous['json'] === EXPIRED_BODY, $anonymous['raw']);
-check('anonymous request never writes a session start time', $anonymous['session_id'] !== null && storedStart($anonymous['session_id']) === null);
+check('anonymous request creates no session, so never writes a start time (APP-07.3.1)', $anonymous['session_id'] === null
+    && glob("$sessionStore/sess_*") === []);
 
 /* 1. New session --------------------------------------------------------------------- */
 
@@ -287,7 +289,10 @@ check('T8 expires at T1 + 6h', request('GET', '/api/events', $sid8)['status'] ==
 $now = $t9 = $t8 + LIFETIME + 60;
 $planted = request('GET', '/health', null); // /health does not open a session
 check('T9 /health opens no session', $planted['session_id'] === null);
-$preLogin = request('GET', '/api/events', null)['session_id']; // anonymous session known to an attacker
+// An existing, unauthenticated session whose ID an attacker knows (the API no longer opens
+// anonymous sessions since APP-07.3.1, so it is planted in the store).
+$preLogin = 'tk' . bin2hex(random_bytes(16));
+file_put_contents("$sessionStore/sess_$preLogin", 'note|s:9:"pre-login";');
 $login9 = signIn($preLogin);
 $sid9 = $login9['session_id'];
 check('T9 login issues a new ID (pre-login ID not kept)', is_string($preLogin) && $sid9 !== $preLogin);

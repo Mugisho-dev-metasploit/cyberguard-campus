@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CyberGuard\Campus\Services;
 
 use CyberGuard\Campus\Exceptions\AuthenticationException;
+use CyberGuard\Campus\Models\User;
 use CyberGuard\Campus\Repositories\UserRepository;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -63,5 +64,17 @@ final class AuthenticationService
         }
 
         return AuthenticationResult::success($updatedUser);
+    }
+
+    /**
+     * Re-reads the account of an authenticated session (APP-07.3.1). Null when the account
+     * no longer exists or is no longer active: the session must then be revoked. The
+     * returned user carries the current role, the only one to authorize with.
+     */
+    public function resolveSessionUser(int $userId): ?User
+    {
+        $user = $this->userRepository->findActiveById($userId);
+
+        return $user !== null && $user->isActive() ? $user : null;
     }
 }

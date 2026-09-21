@@ -91,6 +91,49 @@ final class UserRepository
         return $this->mapToUser($row);
     }
 
+    /**
+     * The account behind a session, only while it may still be used: it exists, its status
+     * is 'active' and it is not soft-deleted. Null otherwise, whatever the reason.
+     */
+    public function findActiveById(int $id): ?User
+    {
+        $sql = <<<'SQL'
+            SELECT
+                id,
+                uuid,
+                username,
+                email,
+                password_hash,
+                first_name,
+                last_name,
+                role,
+                status,
+                last_login_at,
+                created_at,
+                updated_at,
+                deleted_at
+            FROM users
+            WHERE id = :id
+              AND status = 'active'
+              AND deleted_at IS NULL
+            LIMIT 1
+        SQL;
+
+        $statement = $this->connection->prepare($sql);
+
+        $statement->execute([
+            'id' => $id,
+        ]);
+
+        $row = $statement->fetch();
+
+        if ($row === false) {
+            return null;
+        }
+
+        return $this->mapToUser($row);
+    }
+
     public function create(
         string $uuid,
         string $username,
