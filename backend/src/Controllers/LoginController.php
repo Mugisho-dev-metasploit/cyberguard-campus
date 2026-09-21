@@ -12,6 +12,16 @@ use CyberGuard\Campus\Services\LoginThrottle;
 
 final class LoginController
 {
+    /**
+     * APP-07.4.6 — every sign-in and sign-out answer (success, failure, throttling, error) carries
+     * user or session state: no browser or proxy may store it. Set explicitly here rather than
+     * relying on PHP's session cache limiter, which only applies when a session is started.
+     */
+    private const NO_STORE = [
+        'Cache-Control' => 'no-store',
+        'Pragma' => 'no-cache',
+    ];
+
     public function __construct(
         private readonly AuthenticationService $authenticationService,
         private readonly SessionManager $sessionManager,
@@ -37,7 +47,8 @@ final class LoginController
                     'success' => false,
                     'message' => 'Invalid credentials.',
                 ],
-                401
+                401,
+                self::NO_STORE
             );
 
             return;
@@ -57,7 +68,7 @@ final class LoginController
                         'message' => 'Too many sign-in attempts. Try again later.',
                     ],
                     429,
-                    ['Retry-After' => (string) $wait]
+                    ['Retry-After' => (string) $wait] + self::NO_STORE
                 );
 
                 return;
@@ -75,7 +86,8 @@ final class LoginController
                     'success' => false,
                     'message' => 'Invalid credentials.',
                 ],
-                401
+                401,
+                self::NO_STORE
             );
 
             return;
@@ -89,19 +101,39 @@ final class LoginController
                     'success' => false,
                     'message' => 'Authentication failed.',
                 ],
-                401
+                401,
+                self::NO_STORE
+            );
+
+            return;
+        }
+
+        // APP-07.4.5 — a sign-in is reported only once its session is established; otherwise a
+        // generic 500 (same convention as the other controllers), and the throttle is not cleared.
+        try {
+            $established = $this->sessionManager->authenticate(
+                userId: $user->id(),
+                userUuid: $user->uuid(),
+                role: $user->role(),
+            );
+        } catch (\Throwable) {
+            $established = false;
+        }
+
+        if (!$established) {
+            HttpResponse::json(
+                [
+                    'success' => false,
+                    'message' => 'Unable to sign in.',
+                ],
+                500,
+                self::NO_STORE
             );
 
             return;
         }
 
         $this->loginThrottle?->clear($identifier, $source);
-
-        $this->sessionManager->authenticate(
-            userId: $user->id(),
-            userUuid: $user->uuid(),
-            role: $user->role(),
-        );
 
         HttpResponse::json([
             'success' => true,
@@ -114,7 +146,7 @@ final class LoginController
                 'last_name' => $user->lastName(),
                 'role' => $user->role(),
             ],
-        ]);
+        ], 200, self::NO_STORE);
     }
 
     /**
@@ -129,6 +161,6 @@ final class LoginController
         HttpResponse::json([
             'success' => true,
             'message' => 'Logged out successfully.',
-        ]);
+        ], 200, self::NO_STORE);
     }
 }

@@ -112,36 +112,94 @@ final class SessionManager
     /**
      * Opens the session sent by the browser, if any. Never writes the session start time:
      * only authenticate() does, so later requests cannot extend the session.
+     * Returns whether a session is active afterwards (session_start() can fail).
      */
-    public function start(): void
+    public function start(): bool
     {
-        if ($this->invalidated || session_status() === PHP_SESSION_ACTIVE) {
-            return;
+        if ($this->invalidated) {
+            return false;
+        }
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            return true;
         }
 
         $this->configureSessionSettings();
-        session_start();
+
+        return session_start() && session_status() === PHP_SESSION_ACTIVE;
     }
 
+    /**
+     * Signs the user in on a new session. Returns false — leaving no session data, no stored
+     * session and an expired cookie — when the session could not be established (APP-07.4.5):
+     * the caller must then not report a sign-in. Rethrows any exception after the same cleanup.
+     */
     public function authenticate(
         int $userId,
         string $userUuid,
         string $role,
-    ): void {
-        // Session fixation protection: resume whatever session the browser presented, drop
-        // its data, then move to a new ID and delete the old one from the store.
-        // (A custom ID forced with session_id() would be rejected by strict mode.)
-        $this->invalidated = false;
-        $this->start();
-        session_unset();
-        session_regenerate_id(true);
+    ): bool {
+        try {
+            // Session fixation protection: resume whatever session the browser presented, drop
+            // its data, then move to a new ID and delete the old one from the store.
+            // (A custom ID forced with session_id() would be rejected by strict mode.)
+            $this->invalidated = false;
 
-        $_SESSION[self::SESSION_USER_ID] = $userId;
-        $_SESSION[self::SESSION_USER_UUID] = $userUuid;
-        $_SESSION[self::SESSION_ROLE] = $role;
-        $_SESSION[self::SESSION_AUTHENTICATED] = true;
-        // T0: written here only, once per sign-in.
-        $_SESSION[self::SESSION_STARTED_KEY] = $this->now();
+            if (!$this->start()) {
+                $this->abandon();
+
+                return false;
+            }
+
+            $previousId = session_id();
+            session_unset();
+
+            // The identity is written only once the session is active under a new ID.
+            if (
+                !session_regenerate_id(true)
+                || session_status() !== PHP_SESSION_ACTIVE
+                || session_id() === ''
+                || session_id() === $previousId
+            ) {
+                $this->abandon();
+
+                return false;
+            }
+
+            $_SESSION[self::SESSION_USER_ID] = $userId;
+            $_SESSION[self::SESSION_USER_UUID] = $userUuid;
+            $_SESSION[self::SESSION_ROLE] = $role;
+            $_SESSION[self::SESSION_AUTHENTICATED] = true;
+            // T0: written here only, once per sign-in.
+            $_SESSION[self::SESSION_STARTED_KEY] = $this->now();
+
+            return true;
+        } catch (\Throwable $exception) {
+            $this->abandon();
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * A sign-in whose session could not be established leaves nothing usable: no data, the
+     * session deleted when possible — otherwise closed without writing — and the cookie expired.
+     */
+    private function abandon(): void
+    {
+        $_SESSION = [];
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $this->destroy();
+        } else {
+            $this->expireCookie();
+        }
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_abort();
+        }
+
+        $this->invalidated = true;
     }
 
     public function isAuthenticated(): bool
@@ -253,7 +311,16 @@ final class SessionManager
 
         $_SESSION = [];
 
-        if (ini_get('session.use_cookies')) {
+        $this->expireCookie();
+
+        session_destroy();
+        $this->invalidated = true;
+    }
+
+    /** Tells the browser to drop the session cookie (same name, path and attributes as issued). */
+    private function expireCookie(): void
+    {
+        if (ini_get('session.use_cookies') && !headers_sent()) {
             $params = session_get_cookie_params();
 
             setcookie(
@@ -269,8 +336,5 @@ final class SessionManager
                 ]
             );
         }
-
-        session_destroy();
-        $this->invalidated = true;
     }
 }
