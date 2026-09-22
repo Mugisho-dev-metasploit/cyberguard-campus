@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 /**
  * APP-07.4.3 — the submitted password never appears in a logged exception trace.
+ * APP074-18 — nor does the submitted identifier (whole or in part).
  *
  * A real exception is raised inside the sign-in path after the password was received: the real
  * LoginController and AuthenticationService run in a separate PHP process (support/
@@ -11,6 +12,7 @@ declare(strict_types=1);
  * logs it with its stack trace. (Until APP-07.4.4 an identifier larger than max_allowed_packet
  * did this over HTTP; oversized identifiers are now refused before any query.)
  *
+ * The failure is raised in the user lookup and, separately, in the throttle's key computation.
  * Checked with the production trace setting (zend.exception_string_param_max_len = 15) and the
  * worst case (1000000: whole strings), each process logging to a private file. Each password is
  * random for this run (short, long, special characters, hash-like). Nothing is written to the
@@ -63,10 +65,10 @@ function leaks(string $log, string $password): array
  * Runs one sign-in in the probe process (uncaught exception), logging to $log.
  * @return array{0: int, 1: string} exit code and standard output
  */
-function probe(string $log, int $maxLen, string $identifier, string $password): array
+function probe(string $log, int $maxLen, string $identifier, string $password, string $mode): array
 {
     $process = proc_open([PHP_BINARY, '-d', 'display_errors=0', '-d', 'log_errors=1', '-d', "error_log=$log",
-        '-d', 'zend.exception_ignore_args=0', '-d', "zend.exception_string_param_max_len=$maxLen", __DIR__ . '/support/login_trace_probe.php'],
+        '-d', 'zend.exception_ignore_args=0', '-d', "zend.exception_string_param_max_len=$maxLen", __DIR__ . '/support/login_trace_probe.php', $mode],
         [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
     fwrite($pipes[0], json_encode(['identifier' => $identifier, 'password' => $password], JSON_UNESCAPED_UNICODE));
     fclose($pipes[0]);
@@ -77,33 +79,39 @@ function probe(string $log, int $maxLen, string $identifier, string $password): 
 }
 
 /** Checks one batch of attempts against the log text written during that batch. */
-function assess(string $where, string $log, array $attempts, string $reference): void
+function assess(string $where, string $log, array $attempts, string $reference, string $mode): void
 {
+    $redacted = 'Object(SensitiveParameterValue)';
     foreach ($attempts as $label => [$identifier, $password, $status, $body]) {
-        $tag = substr($identifier, 0, 13);   // the identifier's own prefix: finds this request's trace
         check("$where, $label password: the sign-in ended with the uncaught exception (exit 255), nothing printed", $status === 255 && $body === '', "$status");
-        check("$where, $label password: the exception trace went through AuthenticationService->authenticate()",
-            preg_match('/AuthenticationService->authenticate\(\'' . preg_quote($tag, '/') . '/', $log) === 1);
-        check("$where, $label password: the password argument is redacted (SensitiveParameterValue)",
-            preg_match('/AuthenticationService->authenticate\(\'' . preg_quote($tag, '/') . '[^\n]*Object\(SensitiveParameterValue\)\)/', $log) === 1);
         check("$where, $label password: not in the log, whole or in part (no 6-character window)", leaks($log, $password) === [], implode(', ', leaks($log, $password)));
+        check("$where, $label password: identifier not in the log, whole or in part (APP074-18)", leaks($log, $identifier) === [], implode(', ', leaks($log, $identifier)));
     }
 
+    $n = count($attempts);
+    $frames = $mode === 'throttle'
+        ? ['LoginThrottle->attempt(' . $redacted . ", '198.51.100.250')", 'LoginThrottleRepository->keys(' . $redacted . ", '198.51.100.250')"]
+        : ['AuthenticationService->authenticate(' . $redacted . ', ' . $redacted . ')', 'UserRepository->findByUsernameOrEmail(' . $redacted . ')'];
+    foreach ($frames as $frame) {
+        check("$where: every trace shows $frame (the exception really happened there)", substr_count($log, $frame) === $n, (string) substr_count($log, $frame));
+    }
     check("$where: no bcrypt hash (\$2a/\$2b/\$2y), reference hash included, in the log", preg_match('/\$2[aby]\$/', $log) === 0
         && !str_contains($log, $reference) && !str_contains($log, substr($reference, 7, 22)));
 }
 
 try {
-    foreach (['max_len 15 (production setting)' => 15, 'max_len 1000000 (worst case)' => 1000000] as $where => $maxLen) {
-        $log = "$dir/php-error-$maxLen.log";
-        $attempts = [];
-        foreach (passwords() as $label => $password) {
-            $identifier = tk_marker() . '_' . count($attempts) . '_' . bin2hex(random_bytes(4));
-            [$status, $body] = probe($log, $maxLen, $identifier, $password);
-            $attempts[$label] = [$identifier, $password, $status, $body];
+    foreach (['user lookup' => 'users', 'throttle keys' => 'throttle'] as $failure => $mode) {
+        foreach (['max_len 15 (production setting)' => 15, 'max_len 1000000 (worst case)' => 1000000] as $setting => $maxLen) {
+            $log = "$dir/php-error-$mode-$maxLen.log";
+            $attempts = [];
+            foreach (passwords() as $label => $password) {
+                $identifier = tk_marker() . '_' . count($attempts) . '_' . bin2hex(random_bytes(6));
+                [$status, $body] = probe($log, $maxLen, $identifier, $password, $mode);
+                $attempts[$label] = [$identifier, $password, $status, $body];
+            }
+            clearstatcache();
+            assess("$failure, $setting", is_file($log) ? (string) file_get_contents($log) : '', $attempts, $reference, $mode);
         }
-        clearstatcache();
-        assess($where, is_file($log) ? (string) file_get_contents($log) : '', $attempts, $reference);
     }
 } catch (Throwable $e) {
     check('suite ran without an unexpected exception', false, $e::class . ': ' . $e->getMessage());

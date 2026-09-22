@@ -22,6 +22,7 @@ final class HttpRequest
         private readonly string $contentType = 'application/json',
         private readonly ?string $origin = null,
         private readonly string $serverOrigin = '',
+        private readonly string $userAgent = '',   // APP074-11 — recorded (bounded) in audit_logs
     ) {
     }
 
@@ -87,6 +88,7 @@ final class HttpRequest
             origin: isset($_SERVER['HTTP_ORIGIN']) ? (string) $_SERVER['HTTP_ORIGIN'] : null,
             serverOrigin: (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off' ? 'https' : 'http')
                 . '://' . (string) ($_SERVER['HTTP_HOST'] ?? ''),
+            userAgent: (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''),
         );
     }
 
@@ -116,6 +118,11 @@ final class HttpRequest
     public function clientAddress(): string
     {
         return $this->clientAddress;
+    }
+
+    public function userAgent(): string
+    {
+        return $this->userAgent;
     }
 
     /** APP074-05 — true when the body is declared as JSON (media type only, parameters ignored). */
@@ -159,6 +166,7 @@ final class HttpRequest
             contentType: $this->contentType,
             origin: $this->origin,
             serverOrigin: $this->serverOrigin,
+            userAgent: $this->userAgent,
         );
     }
 }

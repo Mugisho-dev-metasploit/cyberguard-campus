@@ -28,7 +28,7 @@ final class LoginThrottleRepository
      *
      * @return array{account: string, source_account: string}
      */
-    public function keys(string $identifier, string $source): array
+    public function keys(#[\SensitiveParameter] string $identifier, string $source): array
     {
         $sql = <<<'SQL'
             SELECT

@@ -51,7 +51,7 @@ final class LoginThrottle
      * Counts one sign-in attempt. Null when it may proceed; otherwise the number of seconds to
      * wait (the attempt was refused and not counted). Same answer whether the account exists.
      */
-    public function attempt(string $identifier, string $source): ?int
+    public function attempt(#[\SensitiveParameter] string $identifier, string $source): ?int
     {
         $now = $this->now();
         $keys = $this->keys($identifier, $source);
@@ -98,7 +98,7 @@ final class LoginThrottle
     }
 
     /** A successful sign-in: both buckets start again from zero. */
-    public function clear(string $identifier, string $source): void
+    public function clear(#[\SensitiveParameter] string $identifier, string $source): void
     {
         $this->repository->delete(array_values($this->keys($identifier, $source)));
     }
@@ -110,7 +110,7 @@ final class LoginThrottle
     }
 
     /** @return array{account: string, source_account: string} */
-    private function keys(string $identifier, string $source): array
+    private function keys(#[\SensitiveParameter] string $identifier, string $source): array
     {
         // Same trimming as AuthenticationService; longer values cannot match any account.
         $identifier = mb_substr(trim($identifier), 0, self::MAX_IDENTIFIER_LENGTH);

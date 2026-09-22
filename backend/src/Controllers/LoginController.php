@@ -7,6 +7,7 @@ namespace CyberGuard\Campus\Controllers;
 use CyberGuard\Campus\Core\HttpRequest;
 use CyberGuard\Campus\Core\HttpResponse;
 use CyberGuard\Campus\Core\SessionManager;
+use CyberGuard\Campus\Services\AuthenticationAudit;
 use CyberGuard\Campus\Services\AuthenticationService;
 use CyberGuard\Campus\Services\LoginThrottle;
 
@@ -26,6 +27,7 @@ final class LoginController
         private readonly AuthenticationService $authenticationService,
         private readonly SessionManager $sessionManager,
         private readonly ?LoginThrottle $loginThrottle = null,
+        private readonly ?AuthenticationAudit $audit = null,
     ) {
     }
 
@@ -91,6 +93,8 @@ final class LoginController
             $wait = $this->loginThrottle->attempt($identifier, $source);
 
             if ($wait !== null) {
+                $this->audit?->loginThrottled($request);
+
                 HttpResponse::json(
                     [
                         'success' => false,
@@ -110,6 +114,8 @@ final class LoginController
         );
 
         if (!$result->isAuthenticated()) {
+            $this->audit?->loginFailed($request);
+
             HttpResponse::json(
                 [
                     'success' => false,
@@ -169,6 +175,8 @@ final class LoginController
         } catch (\Throwable) {
         }
 
+        $this->audit?->loginSucceeded($user->id(), $request);
+
         HttpResponse::json([
             'success' => true,
             'message' => 'Authentication successful.',
@@ -190,7 +198,14 @@ final class LoginController
      */
     public function logout(HttpRequest $request): void
     {
+        // APP074-11 — who signs out (null when no valid session was presented), read before the end.
+        $userId = $this->audit !== null ? $this->sessionManager->userId() : null;
+
         $this->sessionManager->logout();
+
+        if ($userId !== null) {
+            $this->audit?->loggedOut($userId, $request);
+        }
 
         HttpResponse::json([
             'success' => true,

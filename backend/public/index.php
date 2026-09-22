@@ -16,6 +16,7 @@ use CyberGuard\Campus\Database\Database;
 use CyberGuard\Campus\Middleware\AuthenticationMiddleware;
 use CyberGuard\Campus\Middleware\AuthorizationMiddleware;
 use CyberGuard\Campus\Repositories\AlertRepository;
+use CyberGuard\Campus\Repositories\AuditLogRepository;
 use CyberGuard\Campus\Repositories\DeviceRepository;
 use CyberGuard\Campus\Repositories\EventRepository;
 use CyberGuard\Campus\Repositories\IncidentRepository;
@@ -24,6 +25,7 @@ use CyberGuard\Campus\Repositories\MetricsRepository;
 use CyberGuard\Campus\Repositories\UserRepository;
 use CyberGuard\Campus\Routing\Router;
 use CyberGuard\Campus\Services\AlertService;
+use CyberGuard\Campus\Services\AuthenticationAudit;
 use CyberGuard\Campus\Services\AuthenticationService;
 use CyberGuard\Campus\Services\DeviceService;
 use CyberGuard\Campus\Services\EventService;
@@ -56,10 +58,16 @@ $loginThrottle = new LoginThrottle(
     new LoginThrottleRepository($connection)
 );
 
+// APP074-11 — authentication events in audit_logs.
+$authenticationAudit = new AuthenticationAudit(
+    new AuditLogRepository($connection)
+);
+
 $loginController = new LoginController(
     authenticationService: $authenticationService,
     sessionManager: $sessionManager,
     loginThrottle: $loginThrottle,
+    audit: $authenticationAudit,
 );
 
 $incidentRepository = new IncidentRepository(
@@ -126,6 +134,7 @@ $metricsController = new MetricsController(
 $authenticationMiddleware = new AuthenticationMiddleware(
     sessionManager: $sessionManager,
     authenticationService: $authenticationService,
+    audit: $authenticationAudit,
 );
 
 $authorizationMiddleware = new AuthorizationMiddleware(

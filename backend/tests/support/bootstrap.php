@@ -69,6 +69,9 @@ function tk_connect(string $class = PDO::class): PDO
 $GLOBALS['tk_throttle_since'] = gmdate('Y-m-d H:i:s', time() - 3600);
 $GLOBALS['tk_throttle_before'] = tk_pdo()->query('SELECT throttle_key FROM login_throttle')->fetchAll(PDO::FETCH_COLUMN);
 
+/** Authentication events (APP074-11) written during this run are removed by the cleanup. */
+$GLOBALS['tk_audit_max_id'] = (int) tk_pdo()->query('SELECT COALESCE(MAX(id), 0) FROM audit_logs')->fetchColumn();
+
 /** @return array<string, int> */
 function tk_counts(): array
 {
@@ -165,6 +168,8 @@ function tk_cleanup(): void
     $pdo->prepare('DELETE FROM alerts WHERE title LIKE :m')->execute(['m' => $marker]);
     $pdo->prepare('DELETE FROM devices WHERE hostname LIKE :m')->execute(['m' => $marker]);
     $pdo->prepare('DELETE FROM users WHERE username LIKE :m')->execute(['m' => $marker]);
+
+    $pdo->prepare("DELETE FROM audit_logs WHERE id > :max AND action LIKE 'auth.%'")->execute(['max' => $GLOBALS['tk_audit_max_id']]);
 
     $created = array_diff($pdo->query('SELECT throttle_key FROM login_throttle')->fetchAll(PDO::FETCH_COLUMN), $GLOBALS['tk_throttle_before']);
 

@@ -15,7 +15,7 @@ final class UserRepository
     ) {
     }
 
-    public function findByUsernameOrEmail(string $identifier): ?User
+    public function findByUsernameOrEmail(#[\SensitiveParameter] string $identifier): ?User
     {
         $sql = <<<'SQL'
             SELECT

@@ -7,6 +7,7 @@ namespace CyberGuard\Campus\Middleware;
 use CyberGuard\Campus\Core\HttpRequest;
 use CyberGuard\Campus\Core\HttpResponse;
 use CyberGuard\Campus\Core\SessionManager;
+use CyberGuard\Campus\Services\AuthenticationAudit;
 use CyberGuard\Campus\Services\AuthenticationService;
 
 final class AuthenticationMiddleware
@@ -14,6 +15,7 @@ final class AuthenticationMiddleware
     public function __construct(
         private readonly SessionManager $sessionManager,
         private readonly AuthenticationService $authenticationService,
+        private readonly ?AuthenticationAudit $audit = null,
     ) {
     }
 
@@ -37,6 +39,11 @@ final class AuthenticationMiddleware
 
         if ($user === null) {
             $this->sessionManager->destroy();
+
+            if ($userId !== null) {
+                $this->audit?->sessionRevoked($userId, $request);
+            }
+
             $this->unauthenticated();
 
             return;

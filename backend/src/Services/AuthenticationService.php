@@ -46,7 +46,7 @@ final class AuthenticationService
 
     /** APP-07.4.4 — true when both values are within the bounds (identifier as it will be matched, trimmed). */
     public static function withinLimits(
-        string $identifier,
+        #[\SensitiveParameter] string $identifier,
         #[\SensitiveParameter] string $password,
     ): bool {
         return mb_strlen(trim($identifier), 'UTF-8') <= self::MAX_IDENTIFIER_LENGTH
@@ -58,7 +58,7 @@ final class AuthenticationService
      * trace (logged by PHP for an uncaught exception), whatever the trace settings.
      */
     public function authenticate(
-        string $identifier,
+        #[\SensitiveParameter] string $identifier,
         #[\SensitiveParameter] string $password,
     ): AuthenticationResult {
         $identifier = trim($identifier);

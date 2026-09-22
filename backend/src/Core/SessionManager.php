@@ -52,7 +52,13 @@ final class SessionManager
             );
         }
 
-        $isProduction = ($_ENV['APP_ENV'] ?? 'development') === 'production';
+        // APP074-04 — APP_ENV may come from .env ($_ENV), the web server (SetEnv → $_SERVER) or the
+        // process environment (PHP-FPM, containers: not copied to $_ENV with variables_order GPCS,
+        // and not seen by the .env loader, which then writes the .env value into $_ENV). Production
+        // as soon as any source says so, as the test guard does: the Secure flag is never lost.
+        $isProduction = ($_ENV['APP_ENV'] ?? null) === 'production'
+            || ($_SERVER['APP_ENV'] ?? null) === 'production'
+            || getenv('APP_ENV') === 'production';
 
         session_name(
             $this->sessionName()
