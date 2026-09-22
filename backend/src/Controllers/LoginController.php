@@ -31,6 +31,35 @@ final class LoginController
 
     public function login(HttpRequest $request): void
     {
+        // APP074-05 — login CSRF: a cross-site HTML form can only send text/plain, multipart or
+        // urlencoded bodies; requiring JSON forces a CORS preflight, which this API never grants.
+        // A browser-declared foreign Origin is refused as well. Neither counts as a sign-in attempt.
+        if (!$request->isJson()) {
+            HttpResponse::json(
+                [
+                    'success' => false,
+                    'message' => 'Unsupported content type.',
+                ],
+                415,
+                self::NO_STORE
+            );
+
+            return;
+        }
+
+        if (!$request->isSameOrigin()) {
+            HttpResponse::json(
+                [
+                    'success' => false,
+                    'message' => 'Cross-origin sign-in refused.',
+                ],
+                403,
+                self::NO_STORE
+            );
+
+            return;
+        }
+
         $identifier = $request->input('identifier');
         $password = $request->input('password');
 
@@ -133,7 +162,12 @@ final class LoginController
             return;
         }
 
-        $this->loginThrottle?->clear($identifier, $source);
+        // APP074-19 — the session is established: failing to reset the counters (database error)
+        // must not turn the sign-in into an error; the buckets simply expire on their own.
+        try {
+            $this->loginThrottle?->clear($identifier, $source);
+        } catch (\Throwable) {
+        }
 
         HttpResponse::json([
             'success' => true,

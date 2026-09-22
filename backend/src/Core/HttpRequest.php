@@ -17,6 +17,11 @@ final class HttpRequest
         private readonly array $routeParams = [],
         private readonly bool $jsonValid = true,
         private readonly string $clientAddress = '',
+        // APP074-05 — transport metadata. The defaults describe a same-origin JSON request, the
+        // only kind in-process callers build; fromGlobals() always passes the real values.
+        private readonly string $contentType = 'application/json',
+        private readonly ?string $origin = null,
+        private readonly string $serverOrigin = '',
     ) {
     }
 
@@ -78,6 +83,10 @@ final class HttpRequest
             jsonValid: $jsonValid,
             // The TCP peer only: no X-Forwarded-For or similar header is trusted (no proxy in front).
             clientAddress: (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+            contentType: (string) ($_SERVER['CONTENT_TYPE'] ?? ''),
+            origin: isset($_SERVER['HTTP_ORIGIN']) ? (string) $_SERVER['HTTP_ORIGIN'] : null,
+            serverOrigin: (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off' ? 'https' : 'http')
+                . '://' . (string) ($_SERVER['HTTP_HOST'] ?? ''),
         );
     }
 
@@ -109,6 +118,22 @@ final class HttpRequest
         return $this->clientAddress;
     }
 
+    /** APP074-05 — true when the body is declared as JSON (media type only, parameters ignored). */
+    public function isJson(): bool
+    {
+        return strtolower(trim(explode(';', $this->contentType, 2)[0])) === 'application/json';
+    }
+
+    /**
+     * APP074-05 — false when a browser says the request comes from another origin. Browsers send
+     * Origin on every POST; its absence (non-browser client) is not treated as cross-origin, while
+     * the opaque origin "null" is.
+     */
+    public function isSameOrigin(): bool
+    {
+        return $this->origin === null || strcasecmp($this->origin, $this->serverOrigin) === 0;
+    }
+
     public function jsonValid(): bool
     {
         return $this->jsonValid;
@@ -131,6 +156,9 @@ final class HttpRequest
             routeParams: $routeParams,
             jsonValid: $this->jsonValid,
             clientAddress: $this->clientAddress,
+            contentType: $this->contentType,
+            origin: $this->origin,
+            serverOrigin: $this->serverOrigin,
         );
     }
 }

@@ -74,6 +74,22 @@ final class Router
         $route = $this->matchRoute($method, $path);
 
         if ($route === null) {
+            // APP074-12 — the path exists with other methods: 405 and the methods it accepts.
+            $allowed = $this->allowedMethods($path);
+
+            if ($allowed !== []) {
+                HttpResponse::json(
+                    [
+                        'success' => false,
+                        'message' => 'Method not allowed.',
+                    ],
+                    405,
+                    ['Allow' => implode(', ', $allowed)]
+                );
+
+                return;
+            }
+
             HttpResponse::json(
                 [
                     'success' => false,
@@ -117,6 +133,22 @@ final class Router
         );
 
         $pipeline($request);
+    }
+
+    /** @return list<string> methods registered for this path (APP074-12) */
+    private function allowedMethods(string $path): array
+    {
+        $allowed = [];
+
+        foreach (array_keys($this->routes) as $method) {
+            if ($this->matchRoute($method, $path) !== null) {
+                $allowed[] = $method;
+            }
+        }
+
+        sort($allowed);
+
+        return $allowed;
     }
 
     /**

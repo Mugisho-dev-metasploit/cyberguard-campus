@@ -207,6 +207,35 @@ final class UserRepository
         ]);
     }
 
+    /**
+     * APP074-10 — replaces the hash of an account after a successful verification, only if the
+     * stored hash is still the one that was verified: a password changed meanwhile (for instance
+     * reset by an administrator) is never overwritten with the old password. True when replaced.
+     */
+    public function updatePasswordHash(
+        int $userId,
+        #[\SensitiveParameter] string $currentHash,
+        #[\SensitiveParameter] string $newHash,
+    ): bool {
+        $sql = <<<'SQL'
+            UPDATE users
+            SET password_hash = :new_hash
+            WHERE id = :id
+              AND password_hash = :current_hash
+              AND deleted_at IS NULL
+        SQL;
+
+        $statement = $this->connection->prepare($sql);
+
+        $statement->execute([
+            'new_hash' => $newHash,
+            'id' => $userId,
+            'current_hash' => $currentHash,
+        ]);
+
+        return $statement->rowCount() === 1;
+    }
+
     public function isAccountActive(int $userId): bool
     {
         $sql = <<<'SQL'

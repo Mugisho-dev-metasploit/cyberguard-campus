@@ -205,9 +205,10 @@ try {
         $r = http($method, '/logout', $keep);
         $methods[$method] = [$r['status'], $r['json']['message'] ?? null];
     }
-    $routeNotFound = [404, 'Route not found.'];
-    check('8. GET, PATCH, PUT, DELETE /logout → 404 Route not found. (router convention, no GET logout)',
-        $methods === ['GET' => $routeNotFound, 'PATCH' => $routeNotFound, 'PUT' => $routeNotFound, 'DELETE' => $routeNotFound], json_encode($methods));
+    // APP074-12: a known path with another method answers 405 (was 404 "Route not found.").
+    $notAllowed = [405, 'Method not allowed.'];
+    check('8. GET, PATCH, PUT, DELETE /logout → 405 Method not allowed. (no GET logout)',
+        $methods === ['GET' => $notAllowed, 'PATCH' => $notAllowed, 'PUT' => $notAllowed, 'DELETE' => $notAllowed], json_encode($methods));
     check('8. those requests do not end the session', session_exists($store, $keep) && http('GET', '/api/metrics', $keep)['status'] === 200);
 
     /* 9. Client-supplied data never selects the session --------------------------------------- */

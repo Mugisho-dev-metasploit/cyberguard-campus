@@ -31,6 +31,14 @@ final class AuthenticationService
     public const MAX_IDENTIFIER_LENGTH = 254;
     public const MAX_PASSWORD_BYTES = 1024;
 
+    /**
+     * APP074-10 — password hashing policy: bcrypt, cost 12 (the cost of the stored hashes and of
+     * REFERENCE_HASH, about 235 ms here). Explicit on purpose: PASSWORD_DEFAULT is bcrypt cost 10,
+     * so rehashing "to the default" would weaken the stored hashes.
+     */
+    public const PASSWORD_ALGORITHM = PASSWORD_BCRYPT;
+    public const PASSWORD_OPTIONS = ['cost' => 12];
+
     public function __construct(
         private readonly UserRepository $userRepository,
     ) {
@@ -77,6 +85,24 @@ final class AuthenticationService
 
         if ($user === null || !$passwordMatches) {
             return AuthenticationResult::failure();
+        }
+
+        // APP074-10 — a hash weaker than the policy is upgraded now that the password is known.
+        // Only weaker: password_needs_rehash() alone would also rewrite a stronger (higher-cost)
+        // hash down to the policy. Best effort: a failure keeps the old hash and never blocks the sign-in.
+        $stored = password_get_info($user->passwordHash());
+        $weaker = $stored['algo'] !== self::PASSWORD_ALGORITHM
+            || (int) ($stored['options']['cost'] ?? 0) < self::PASSWORD_OPTIONS['cost'];
+
+        if ($weaker) {
+            try {
+                $this->userRepository->updatePasswordHash(
+                    $user->id(),
+                    $user->passwordHash(),
+                    password_hash($password, self::PASSWORD_ALGORITHM, self::PASSWORD_OPTIONS)
+                );
+            } catch (\Throwable) {
+            }
         }
 
         $timestamp = (new DateTimeImmutable(

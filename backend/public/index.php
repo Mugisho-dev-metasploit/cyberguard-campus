@@ -33,6 +33,9 @@ use CyberGuard\Campus\Services\MetricsService;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+// APP074-13 — the PHP version is not advertised (expose_php is a server-wide setting).
+header_remove('X-Powered-By');
+
 Environment::load(dirname(__DIR__, 2));
 
 $request = HttpRequest::fromGlobals();
